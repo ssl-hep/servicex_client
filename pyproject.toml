@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "servicex-client"
+version = "0.1.0"
+description = ""
+authors = ["Ben Galewsky <bengal1@illinois.edu>"]
+readme = "README.md"
+packages = [{include = "servicex_client"}]
+
+[tool.poetry.scripts]
+servicex = "servicex_client.app.main:app"
+
+[tool.poetry.dependencies]
+python = "3.10.*"
+qastle = "^0.16"
+func_adl = "^3.2"
+servicex = "^2.6.2"
+func_adl_servicex = "^2.2"
+requests = "^2.31.0"
+pydantic = "^1.10.2"
+httpx = "^0.24.1"
+miniopy-async = "^1.14"
+typer = { extras = ["all"], version = "^0.9.0" }
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.2.0"
+pytest-mock = "^3.10.0"
+pytest-cov = "^4.0.0"
+flake8 = "^5.0.4"
+mypy = "^0.981"
+
+
+
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
