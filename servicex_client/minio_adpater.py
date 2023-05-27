@@ -25,9 +25,15 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from typing import List
+import os.path
+from pathlib import Path
+from typing import List, Coroutine, Any
 
 from miniopy_async import Minio
+from miniopy_async.datatypes import Object
+
+from servicex_client.models import ResultFile, TransformStatus
+
 
 class MinioAdapter:
     def __init__(self, endpoint_host: str,
@@ -44,9 +50,33 @@ class MinioAdapter:
 
         self.bucket = bucket
 
-    async def list_bucket(self) -> List[str]:
-        objects = await self.minio.list_objects(self.bucket)
-        for obj in objects:
-            print(obj)
-        return []
+    @classmethod
+    def for_transform(cls, transform: TransformStatus):
+        return MinioAdapter(
+            endpoint_host=transform.minio_endpoint,
+            secure=transform.minio_secured,
+            access_key=transform.minio_access_key,
+            secret_key=transform.minio_secret_key,
+            bucket=transform.request_id
+        )
 
+    async def list_bucket(self) -> List[ResultFile]:
+        objects = await self.minio.list_objects(self.bucket)
+        return [ResultFile(
+            filename=obj.object_name,
+            size=obj.size,
+            extension=obj.object_name.split(".")[-1]
+        ) for obj in objects]
+
+    async def download_file(self, object_name:str, local_dir: str) -> ResultFile:
+        os.makedirs(local_dir, exist_ok=True)
+        obj = await self.minio.fget_object(
+            bucket_name=self.bucket,
+            object_name=object_name,
+            file_path=os.path.join(local_dir, object_name)
+        )
+        return ResultFile(
+            filename=obj.object_name,
+            size=obj.size,
+            extension=obj.object_name.split(".")[-1]
+        )

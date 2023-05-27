@@ -31,6 +31,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional
 
+
 class ResultDestination(str, Enum):
     object_store = 'object-store'
     volume = 'volume'
@@ -81,9 +82,19 @@ class TransformStatus(BaseModel):
     files_remaining: int = Field(alias="files-remaining")
     submit_time: datetime = Field(alias="submit-time")
     finish_time: Optional[datetime] = Field(alias="finish-time")
+    minio_endpoint: Optional[str] = Field(alias="minio-endpoint")
+    minio_secured: Optional[bool] = Field(alias="minio-secured")
+    minio_access_key: Optional[str] = Field(alias="minio-access-key")
+    minio_secret_key: Optional[str] = Field(alias="minio-secret-key")
 
     @validator("finish_time", pre=True)
     def parse_finish_time(cls, v):
         if isinstance(v, str) and v == "None":
             return None
         return v
+
+
+class ResultFile(BaseModel):
+    filename: str
+    size: int
+    extension: str

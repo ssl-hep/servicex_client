@@ -25,16 +25,19 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from typing import Optional
+import asyncio
+from typing import Optional, List
 
 import rich
 import typer
 from rich.table import Table
 
-from servicex_client.models import Status
+from servicex_client.minio_adpater import MinioAdapter
+from servicex_client.models import Status, ResultFile
 from servicex_client.servicex_adapter import ServiceXAdapter
 
 transforms_app = typer.Typer(name="transforms", no_args_is_help=True)
+
 
 @transforms_app.callback()
 def transforms():
@@ -42,6 +45,7 @@ def transforms():
     sub-commands for creating and manipulating Gardens
     """
     pass
+
 
 @transforms_app.command(no_args_is_help=True)
 def list(
@@ -56,9 +60,59 @@ def list(
     table.add_column("Transform ID")
     table.add_column("Title")
     table.add_column("Status")
-    for t in sx.get_transforms():
+    table.add_column("Files")
+    transforms = asyncio.run(sx.get_transforms())
+    for t in transforms:
         if not complete or complete and t.status == Status.complete:
-            table.add_row(t.request_id, "Not implemented", t.status)
+            table.add_row(t.request_id, "Not implemented", t.status,
+                          str(t.files_completed))
 
     rich.print(table)
 
+
+@transforms_app.command(no_args_is_help=True)
+def files(
+        url: Optional[str] = typer.Option(
+            None, "-u", "--url", help="URL of ServiceX server"
+        ),
+        transform_id: str = typer.Option(None, "-t", "--transform-id",
+                                         help="Transform ID")
+):
+    async def list_files(sx: ServiceXAdapter, transform_id: str) -> List[ResultFile]:
+        transform = await sx.get_transform_status(transform_id)
+        minio = MinioAdapter.for_transform(transform)
+        return await minio.list_bucket()
+
+    sx = ServiceXAdapter(url)
+    result_files = asyncio.run(list_files(sx, transform_id))
+    table = rich.table.Table(title=f"Files from {transform_id}")
+    table.add_column("filename")
+    table.add_column("Size(Mb)")
+    table.add_column("Filetype")
+    for f in result_files:
+        table.add_row(f.filename, "%.2f" % (f.size / 1e6), f.extension)
+    rich.print(table)
+
+
+@transforms_app.command(no_args_is_help=True)
+def download(
+        url: Optional[str] = typer.Option(
+            None, "-u", "--url", help="URL of ServiceX server"
+        ),
+        transform_id: str = typer.Option(None, "-t", "--transform-id",
+                                         help="Transform ID"),
+        local_dir: str = typer.Option(".", "-d", help="Local dir to download to")
+):
+    async def download_files(sx: ServiceXAdapter, transform_id: str, local_dir):
+        transform = await sx.get_transform_status(transform_id)
+        minio = MinioAdapter.for_transform(transform)
+        file_list = await minio.list_bucket()
+        tasks = [
+            minio.download_file(f.filename, local_dir) for f in file_list
+        ]
+        print(tasks)
+        return await asyncio.gather(*tasks)
+
+    sx = ServiceXAdapter(url)
+    result_files = asyncio.run(download_files(sx, transform_id, local_dir))
+    print(result_files)

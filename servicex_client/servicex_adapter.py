@@ -40,9 +40,10 @@ class ServiceXAdapter:
     def __init__(self, url: str):
         self.url = url
 
-    def get_transforms(self):
-        r = requests.get(url=f"{self.url}/servicex/transformation")
-        statuses = [TransformStatus(**status) for status in r.json()['requests']]
+    async def get_transforms(self):
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url=f"{self.url}/servicex/transformation")
+            statuses = [TransformStatus(**status) for status in r.json()['requests']]
         return statuses
 
     def get_code_generators(self):
