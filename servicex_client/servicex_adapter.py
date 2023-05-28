@@ -47,12 +47,14 @@ class ServiceXAdapter:
         return statuses
 
     def get_code_generators(self):
-        r = requests.get(url=f"{self.url}/multiple-codegen-list")
+        with httpx.Client() as client:
+            r = client.get(url=f"{self.url}/multiple-codegen-list")
         return r.json()
 
     def submit_transform(self, transform_request: TransformRequest):
-        r = requests.post(url=f"{self.url}/servicex/transformation",
-                          json=transform_request.dict(by_alias=True, exclude_none=True))
+        with httpx.Client() as client:
+            r = client.post(url=f"{self.url}/servicex/transformation",
+                            json=transform_request.dict(by_alias=True, exclude_none=True))
         return r.json()['request_id']
 
     async def get_transform_status(self, request_id: str):

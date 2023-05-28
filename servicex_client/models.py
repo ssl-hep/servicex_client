@@ -36,6 +36,7 @@ class ResultDestination(str, Enum):
     object_store = 'object-store'
     volume = 'volume'
 
+
 class ResultFormat(str, Enum):
     parquet = "parquet",
     root_file = "root-file"
@@ -79,7 +80,7 @@ class TransformStatus(BaseModel):
     files: int
     files_completed: int = Field(alias="files-completed")
     files_failed: int = Field(alias="files-failed")
-    files_remaining: int = Field(alias="files-remaining")
+    files_remaining: Optional[int] = Field(alias="files-remaining")
     submit_time: datetime = Field(alias="submit-time")
     finish_time: Optional[datetime] = Field(alias="finish-time")
     minio_endpoint: Optional[str] = Field(alias="minio-endpoint")
@@ -98,3 +99,4 @@ class ResultFile(BaseModel):
     filename: str
     size: int
     extension: str
+

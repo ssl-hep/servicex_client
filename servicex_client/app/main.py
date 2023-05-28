@@ -55,6 +55,7 @@ def main_info(
     """
     pass
 
+
 @app.command(no_args_is_help=True)
 def list_codegens(
         url: Optional[str] = typer.Option(

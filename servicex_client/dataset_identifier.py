@@ -40,7 +40,7 @@ class DataSetIdentifier:
         return f"{self.scheme}://{self.dataset}"
 
     def populate_transform_request(self, transform_request: TransformRequest) -> None:
-        transform_request.did = self.scheme
+        transform_request.did = self.did
         transform_request.file_list = None
 
 

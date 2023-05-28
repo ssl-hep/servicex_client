@@ -30,7 +30,7 @@ import asyncio
 import concurrent.futures
 import logging
 from abc import ABC
-from concurrent.futures import ThreadPoolExecutor
+from asyncio import Task, CancelledError
 from time import sleep
 from typing import TypeVar, Any, cast, List, Optional, Union
 
@@ -41,7 +41,8 @@ from func_adl import EventDataset, ObjectStream
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.func_adl.util import has_tuple, FuncADLServerException, has_col_names
 from servicex_client.minio_adpater import MinioAdapter
-from servicex_client.models import TransformRequest, ResultDestination, ResultFormat
+from servicex_client.models import TransformRequest, ResultDestination, ResultFormat, \
+    Status
 from servicex_client.servicex_adapter import ServiceXAdapter
 
 T = TypeVar("T")
@@ -89,6 +90,8 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         Create a servicex dataset sequence from a servicex dataset
         """
         super().__init__(item_type=Any)
+        self.current_status = None
+        self.result_format = None
         self.minio = None
         self.minio_secret_key = None
         self.minio_access_key = None
@@ -118,29 +121,63 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
     async def monitor_status(self):
         while True:
-            status = await self.servicex.get_transform_status(self.request_id)
+            self.current_status = await self.servicex.get_transform_status(self.request_id)
             if not self.minio:
-                self.minio = MinioAdapter(
-                    endpoint_host=status['minio-endpoint'],
-                    secure=status['minio-secured'],
-                    access_key=status['minio-access-key'],
-                    secret_key=status['minio-secret-key'],
-                    bucket=status['request_id']
-                )
+                self.minio = MinioAdapter.for_transform(self.current_status)
 
-            if status["status"] == "Complete":
-                self.files_completed = status['files-completed']
-                self.files_failed = status['files-failed']
+            if self.current_status.status == Status.complete:
+                self.files_completed = self.current_status.files_completed
+                self.files_failed = self.current_status.files_failed
                 return
 
-            print(status)
-            sleep(20)
+            print(f"Status update: {self.current_status.status} "
+                  f"Files{self.current_status.files_completed}/{self.current_status.files_remaining}")
+            await asyncio.sleep(20)
 
-    def submit(self) -> concurrent.futures.Future:
+    async def submit(self):
+        download_files_task = None
+        loop = asyncio.get_running_loop()
+
+        def monitor_status_done(task: Task):
+            print("Well well well")
+            if task.exception():
+                print("------>", task.exception())
+                if download_files_task:
+                    download_files_task.cancel("Transform failed")
+
         self.result_format = ResultFormat.parquet
         sx_request = self.transform_request
         self.request_id = self.servicex.submit_transform(sx_request)
-        asyncio.run(self.monitor_status())
+
+        monitor_task = loop.create_task(self.monitor_status())
+        monitor_task.add_done_callback(monitor_status_done)
+
+        download_files_task = loop.create_task(self.download_files())
+
+        try:
+            await download_files_task
+        except CancelledError:
+            print("Shut down file downloads due to transform failure")
+
+    async def download_files(self):
+        files_seen = set()
+        download_tasks = []
+        loop = asyncio.get_running_loop()
+
+        while True:
+            await asyncio.sleep(10)
+            if self.minio:
+                files = await self.minio.list_bucket()
+                for file in files:
+                    if file.filename not in files_seen:
+                        download_tasks.append(loop.create_task(self.minio.download_file(file.filename, "foo")))
+                        files_seen.add(file.filename)
+
+            if self.current_status and self.current_status.status == Status.complete:
+                print("Transform complete. Download tasks")
+                print(download_tasks)
+                break
+        await asyncio.gather(*download_tasks)
 
     def as_pandas(self):
         self.result_format = ResultFormat.parquet
