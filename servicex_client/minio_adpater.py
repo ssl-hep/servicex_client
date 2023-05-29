@@ -43,7 +43,7 @@ class MinioAdapter:
                  bucket: str):
         self.minio = Minio(
             endpoint_host,
-            access_key = access_key,
+            access_key=access_key,
             secret_key=secret_key,
             secure=secure
         )
