@@ -25,6 +25,8 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import asyncio
+
 from servicex_client.dataset_identifier import RucioDatasetIdentifier, FileListDataset
 from servicex_client.servicex_client import ServiceXClient
 
@@ -35,10 +37,8 @@ dataset_id = FileListDataset("root://eospublic.cern.ch//eos/opendata/atlas/Outre
 
 ds = sx.func_adl_uproot_dataset(dataset_id)
 
-sx2 = ds.SelectMany('lambda e: e.Jets("AntiKt4EMTopoJets")')\
-    .Where('lambda j: j.pt()/1000 > 20 and abs(j.eta()/1000) < 4.5')\
-    .Select('lambda j: j.getAttributeFloat("LArQuality")').submit()
+sx2 = ds.Select(lambda e: {'lep_pt': e['lep_pt']}).submit()
+sx3 = asyncio.run(sx2)
 
-print(sx2.result())
-print(sx2)
+print(sx3)
 
