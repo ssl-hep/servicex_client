@@ -25,20 +25,10 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-import asyncio
+from servicex_client.configuration import Configuration
 
-from servicex_client.dataset_identifier import RucioDatasetIdentifier, FileListDataset
-from servicex_client.servicex_client import ServiceXClient
 
-sx = ServiceXClient(backend="testing4")
-print(sx.get_code_generators())
-
-dataset_id = FileListDataset("root://eospublic.cern.ch//eos/opendata/atlas/OutreachDatasets/2020-01-22/4lep/MC/mc_345060.ggH125_ZZ4lep.4lep.root")
-
-ds = sx.func_adl_uproot_dataset(dataset_id)
-
-sx2 = ds.Select(lambda e: {'lep_pt': e['lep_pt']}).as_parquet_files()
-sx3 = asyncio.run(sx2)
-
-print(sx3)
-
+def test_config_read():
+    c = Configuration.read(config_path="./example_config.yaml")
+    assert c
+    print(c.endpoint_dict())

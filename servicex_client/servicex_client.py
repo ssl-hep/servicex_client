@@ -25,17 +25,45 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import asyncio
+import logging
 from typing import Union
 
+import rich
+
+from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.servicex_adapter import ServiceXAdapter
 from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUproot
 
 
 class ServiceXClient:
-    def __init__(self, backend=None, url=None):
+    def __init__(self, backend=None, url=None, config_path=None):
+        self.config = Configuration.read(config_path)
+        self.endpoints = self.config.endpoint_dict()
+
+        if bool(url) == bool(backend):
+            raise ValueError("Only specify backend or url... not both")
+
         if url:
             self.servicex = ServiceXAdapter(url)
+        elif backend:
+            if backend not in self.endpoints:
+                raise ValueError(f"Backend {backend} not defined in .servicex file")
+            self.servicex = ServiceXAdapter(self.endpoints[backend].endpoint,
+                                            refresh_token=self.endpoints[backend].token)
+
+    async def get_transforms_async(self):
+        return self.servicex.get_transforms()
+
+    def get_transforms(self):
+        return asyncio.run(self.servicex.get_transforms())
+
+    def get_transform_status(self, transform_id):
+        return asyncio.run(self.servicex.get_transform_status(request_id=transform_id))
+
+    async def get_transform_status_async(self, transform_id):
+        return await self.servicex.get_transform_status(request_id=transform_id)
 
     def get_code_generators(self):
         return self.servicex.get_code_generators()
@@ -48,3 +76,5 @@ class ServiceXClient:
                                 ):
         return ServiceXFuncADLUproot(dataset_identifier, sx_adapter=self.servicex,
                                      title=title, codegen=codegen)
+
+

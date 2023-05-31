@@ -68,15 +68,12 @@ class MinioAdapter:
             extension=obj.object_name.split(".")[-1]
         ) for obj in objects]
 
-    async def download_file(self, object_name:str, local_dir: str) -> ResultFile:
+    async def download_file(self, object_name:str, local_dir: str) -> Path:
         os.makedirs(local_dir, exist_ok=True)
-        obj = await self.minio.fget_object(
+        path = Path(os.path.join(local_dir, object_name))
+        _ = await self.minio.fget_object(
             bucket_name=self.bucket,
             object_name=object_name,
-            file_path=os.path.join(local_dir, object_name)
+            file_path=path.as_posix()
         )
-        return ResultFile(
-            filename=obj.object_name,
-            size=obj.size,
-            extension=obj.object_name.split(".")[-1]
-        )
+        return path.resolve()

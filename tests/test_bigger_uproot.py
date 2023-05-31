@@ -33,11 +33,11 @@ from servicex_client.servicex_client import ServiceXClient
 sx = ServiceXClient(backend="testing4")
 print(sx.get_code_generators())
 
-dataset_id = FileListDataset("root://eospublic.cern.ch//eos/opendata/atlas/OutreachDatasets/2020-01-22/4lep/MC/mc_345060.ggH125_ZZ4lep.4lep.root")
+dataset_id = RucioDatasetIdentifier("user.kchoi:user.kchoi.fcnc_tHq_ML.ttH.v8")
 
 ds = sx.func_adl_uproot_dataset(dataset_id)
 
-sx2 = ds.Select(lambda e: {'lep_pt': e['lep_pt']}).as_parquet_files()
+sx2 = ds.Select(lambda e: {'el_pt': e['el_pt']}).as_parquet_files()
 sx3 = asyncio.run(sx2)
 
 print(sx3)

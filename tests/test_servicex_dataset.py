@@ -28,11 +28,16 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from qastle import Any
+
+from func_adl import EventDataset
 
 from servicex_client.dataset_identifier import FileListDataset
 from servicex_client.func_adl.servicex_dataset_source import ServiceXDatasetSourceBase
+from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUproot
 from servicex_client.minio_adpater import MinioAdapter
-from servicex_client.models import TransformStatus, Status, ResultDestination, ResultFile
+from servicex_client.models import TransformStatus, Status, ResultDestination, ResultFile, \
+    ResultFormat
 from servicex_client.servicex_adapter import ServiceXAdapter
 
 transform_status = TransformStatus(
@@ -92,8 +97,8 @@ file2 = ResultFile(
 @pytest.mark.asyncio
 async def test_submit(mocker):
     servicex = AsyncMock()
-    servicex.submit_transform = Mock()
-    servicex.submit_transform.return_value={'request_id': '123-456-789"'}
+    servicex.submit_transform = AsyncMock()
+    servicex.submit_transform.return_value = {'request_id': '123-456-789"'}
     servicex.get_transform_status = AsyncMock()
     servicex.get_transform_status.side_effect=[transform_status1, transform_status2, transform_status3]
 
@@ -105,5 +110,19 @@ async def test_submit(mocker):
     datasource = ServiceXDatasetSourceBase(dataset_identifier=did,
                                            codegen="uproot",
                                            sx_adapter=servicex)
-    result = await datasource.submit()
+    datasource.result_format = ResultFormat.parquet
+    result = await datasource.submit_and_download()
     print(mock_minio.download_file.call_args)
+
+
+def test_transform_request():
+    servicex = AsyncMock()
+    did = FileListDataset("/foo/bar/baz.root")
+
+    datasource = ServiceXFuncADLUproot(dataset_identifier=did,
+                                       codegen="uproot",
+                                       sx_adapter=servicex)
+
+    q = datasource.Select(lambda e: {'lep_pt': e['lep_pt']}).set_result_format(ResultFormat.parquet).transform_request
+    print("Qastle is ", q)
+

@@ -31,12 +31,15 @@ import concurrent.futures
 import logging
 from abc import ABC
 from asyncio import Task, CancelledError
+
+from rich.live import Live
 from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
     TimeRemainingColumn
 from typing import TypeVar, Any, cast, List, Optional, Union
 
 import rich
 from qastle import python_ast_to_text_ast
+from rich.table import Table
 
 from func_adl import EventDataset, ObjectStream
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
@@ -120,10 +123,19 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         self.dataset_identifier.populate_transform_request(sx_request)
         return sx_request
 
+    def set_result_format(self, result_format: ResultFormat):
+        self.result_format = result_format
+        return self
+
     async def monitor_status(self, progress: Progress, progress_task: TaskID, download_task: TaskID):
         final_count = None
+
         while True:
-            self.current_status = await self.servicex.get_transform_status(self.request_id)
+            s = await self.servicex.get_transform_status(self.request_id)
+            if not self.current_status:
+                rich.print(f"[bold]ServiceX Transform {s.request_id}[/bold]")
+
+            self.current_status = s
 
             if not final_count and self.current_status.files:
                 final_count = self.current_status.files
@@ -145,30 +157,39 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
             await asyncio.sleep(5)
 
-    async def submit(self):
+    async def as_parquet_files(self):
+        self.result_format = ResultFormat.parquet
+        return await self.submit_and_download()
+
+    async def submit_and_download(self):
         download_files_task = None
         loop = asyncio.get_running_loop()
 
         def monitor_status_done(task: Task):
-            print("Well well well")
+            if self.current_status.files_failed:
+                rich.print(f"[bold red]Transforms completed with failures[/bold red] {self.current_status.files_failed} files failed out of {self.current_status.files}")
+            else:
+                rich.print("Transforms completed successfully")
+
             if task.exception():
                 print("------>", task.exception())
                 print(task.get_stack())
                 if download_files_task:
                     download_files_task.cancel("Transform failed")
 
-        self.result_format = ResultFormat.parquet
         sx_request = self.transform_request
 
+        rich.print()
         with Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 MofNCompleteColumn(),
-                TimeRemainingColumn(compact=True, elapsed_when_finished=True)
+                TimeRemainingColumn(compact=True, elapsed_when_finished=True),
         ) as progress:
             transform_progress = progress.add_task("Transform", start=False, total=None)
             download_progress = progress.add_task("Download", start=False, total=None)
-            self.request_id = self.servicex.submit_transform(sx_request)
+
+            self.request_id = await self.servicex.submit_transform(sx_request)
 
             monitor_task = loop.create_task(self.monitor_status(progress, transform_progress, download_progress))
             monitor_task.add_done_callback(monitor_status_done)
@@ -199,8 +220,6 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                         files_seen.add(file.filename)
 
             if self.current_status and self.current_status.status == Status.complete:
-                print("Transform complete. Download tasks")
-                print(download_tasks)
                 break
         await asyncio.gather(*download_tasks)
 

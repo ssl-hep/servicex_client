@@ -51,19 +51,19 @@ class ServiceXFuncADLUproot(ServiceXDatasetSourceBase):
                          codegen=codegen,
                          sx_adapter=sx_adapter)
 
-    def generate_qastle(self, a: ast.Call) -> str:
-        '''Genrate the `qastle` for a query to the uproot backend
-
-        Args:
-            a (ast.AST): The query
-
-        Returns:
-            str: The `qastle`, ready to pass to the back end.
-        '''
-        # We need to pull the top off it - the request for the particular data type (parquet, pandas, etc.)
-        # should not get passed to the transformer.
-        source = a.args[0]
-
-        # And that is all we need!
-        return python_ast_to_text_ast(qastle.insert_linq_nodes(source))
+    # def generate_qastle(self, a: ast.Call) -> str:
+    #     '''Genrate the `qastle` for a query to the uproot backend
+    #
+    #     Args:
+    #         a (ast.AST): The query
+    #
+    #     Returns:
+    #         str: The `qastle`, ready to pass to the back end.
+    #     '''
+    #     # We need to pull the top off it - the request for the particular data type (parquet, pandas, etc.)
+    #     # should not get passed to the transformer.
+    #     source = a.args[0]
+    #
+    #     # And that is all we need!
+    #     return python_ast_to_text_ast(qastle.insert_linq_nodes(source))
 

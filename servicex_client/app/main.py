@@ -30,13 +30,14 @@ from typing import Optional
 import rich
 import typer
 from servicex_client._version import __version__
+from servicex_client.app.cli_options import url_cli_option, backend_cli_option
 from servicex_client.app.transforms import transforms_app
 from servicex_client.servicex_adapter import ServiceXAdapter
+from servicex_client.servicex_client import ServiceXClient
 
 app = typer.Typer(no_args_is_help=True)
 
 app.add_typer(transforms_app)
-
 
 def show_version(show: bool):
     """Display the installed version and quit."""
@@ -58,10 +59,10 @@ def main_info(
 
 @app.command(no_args_is_help=True)
 def list_codegens(
-        url: Optional[str] = typer.Option(
-            None, "-u", "--url", help="URL of ServiceX server"
-        )):
-    sx = ServiceXAdapter(url)
+        url: Optional[str] = url_cli_option,
+        backend: Optional[str] = backend_cli_option
+):
+    sx = ServiceXClient(url=url, backend=backend)
     rich.print_json(data=sx.get_code_generators())
 
 

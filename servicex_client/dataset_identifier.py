@@ -31,13 +31,15 @@ from servicex_client.models import TransformRequest
 
 
 class DataSetIdentifier:
-    def __init__(self, scheme:str, dataset: str):
+    def __init__(self, scheme:str, dataset: str, num_files: int=None):
         self.scheme = scheme
         self.dataset = dataset
+        self.num_files = num_files
 
     @property
     def did(self):
-        return f"{self.scheme}://{self.dataset}"
+        num_files_arg = f"?files={self.num_files}" if self.num_files else ""
+        return f"{self.scheme}://{self.dataset}{num_files_arg}"
 
     def populate_transform_request(self, transform_request: TransformRequest) -> None:
         transform_request.did = self.did
@@ -45,8 +47,8 @@ class DataSetIdentifier:
 
 
 class RucioDatasetIdentifier(DataSetIdentifier):
-    def __init__(self, dataset: str):
-        super().__init__("rucio", dataset)
+    def __init__(self, dataset: str, num_files: int = None):
+        super().__init__("rucio", dataset, num_files=num_files)
 
 
 class FileListDataset:
