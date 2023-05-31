@@ -44,6 +44,9 @@ class Configuration(BaseModel):
     default_endpoint: Optional[str] = Field(alias="default-endpoint")
     cache_path: Optional[str] = Field(alias="cache-path")
 
+    class Config:
+        allow_population_by_field_name = True
+
     def endpoint_dict(self) -> Dict[str, Endpoint]:
         return {endpoint.name: endpoint for endpoint in self.api_endpoints}
 

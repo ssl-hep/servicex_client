@@ -29,9 +29,12 @@ import ast
 import asyncio
 import concurrent.futures
 import logging
+import os.path
 from abc import ABC
 from asyncio import Task, CancelledError
+from pathlib import Path
 
+import pandas
 from rich.live import Live
 from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
     TimeRemainingColumn
@@ -42,6 +45,7 @@ from qastle import python_ast_to_text_ast
 from rich.table import Table
 
 from func_adl import EventDataset, ObjectStream
+from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.func_adl.util import has_tuple, FuncADLServerException, has_col_names
 from servicex_client.minio_adpater import MinioAdapter
@@ -53,54 +57,24 @@ T = TypeVar("T")
 
 
 class ServiceXDatasetSourceBase(EventDataset[T], ABC):
-    """
-    Base class for a ServiceX backend dataset.
-
-    While no methods are abstract, base classes will need to add arguments
-    to the base `EventDataset` to make sure that it contains the information
-    backends expect!
-    """
-
-    # How we map from func_adl to a servicex query
-    _ds_map = {
-        "ResultTTree": "get_data_rootfiles_async",
-        "ResultParquet": "get_data_parquet_async",
-        "ResultPandasDF": "get_data_pandas_df_async",
-        "ResultAwkwardArray": "get_data_awkward_async",
-    }
-
-    # If it comes down to format, what are we going to grab?
-    _format_map = {
-        "root-file": "get_data_rootfiles_async",
-        "parquet": "get_data_parquet_async",
-    }
-
     # These are methods that are translated locally
     _execute_locally = ["ResultPandasDF", "ResultAwkwardArray"]
-
-    # If we have a choice of formats, what can we do, in
-    # prioritized order?
-    _format_list = ["parquet", "root-file"]
 
     def __init__(
         self,
         dataset_identifier: Union[
                 DataSetIdentifier, FileListDataset],
-            title:str = "ServiceX Client",
-            codegen:str = None,
-            sx_adapter: ServiceXAdapter = None
-    ):
-        """
-        Create a servicex dataset sequence from a servicex dataset
-        """
+            title: str = "ServiceX Client",
+            codegen: str = None,
+            sx_adapter: ServiceXAdapter = None,
+            config: Configuration = None,
+            servicex_polling_interval: int = 10,
+            minio_polling_interval: int = 5):
         super().__init__(item_type=Any)
+        self.configuration = config
         self.current_status = None
         self.result_format = None
         self.minio = None
-        self.minio_secret_key = None
-        self.minio_access_key = None
-        self.minio_secured = None
-        self.minio_endpoint = None
         self.files_failed = None
         self.files_completed = None
         self.dataset_identifier = dataset_identifier
@@ -111,6 +85,11 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         self.title = title
         self.request_id = None
 
+        # Number of seconds in between ServiceX status polls
+        self.servicex_polling_interval = servicex_polling_interval
+        self.minio_polling_interval = minio_polling_interval
+
+
     @property
     def transform_request(self):
         sx_request = TransformRequest(
@@ -120,6 +99,7 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             result_format=self.result_format,
             selection=self.generate_qastle(self.query_ast)
         )
+        # Transfer the DID into the transform request
         self.dataset_identifier.populate_transform_request(sx_request)
         return sx_request
 
@@ -127,59 +107,36 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         self.result_format = result_format
         return self
 
-    async def monitor_status(self, progress: Progress, progress_task: TaskID, download_task: TaskID):
-        final_count = None
-
-        while True:
-            s = await self.servicex.get_transform_status(self.request_id)
-            if not self.current_status:
-                rich.print(f"[bold]ServiceX Transform {s.request_id}[/bold]")
-
-            self.current_status = s
-
-            if not final_count and self.current_status.files:
-                final_count = self.current_status.files
-                progress.update(progress_task, total=final_count)
-                progress.start_task(progress_task)
-
-                progress.update(download_task, total=final_count)
-                progress.start_task(download_task)
-
-            progress.update(progress_task, completed=self.current_status.files_completed)
-
-            if not self.minio:
-                self.minio = MinioAdapter.for_transform(self.current_status)
-
-            if self.current_status.status == Status.complete:
-                self.files_completed = self.current_status.files_completed
-                self.files_failed = self.current_status.files_failed
-                return
-
-            await asyncio.sleep(5)
-
-    async def as_parquet_files(self):
-        self.result_format = ResultFormat.parquet
-        return await self.submit_and_download()
-
     async def submit_and_download(self):
+        """
+        Submit the transform request to ServiceX. Poll the transform status to see when
+        the transform completes and to get the number of files in the dataset along with
+        current progress and failed file count.
+        :return:
+        """
         download_files_task = None
         loop = asyncio.get_running_loop()
 
         def monitor_status_done(task: Task):
+            """
+            Called when the Monitor task completes. This could be because of exception or
+            the transform completed
+            :param task:
+            :return:
+            """
+            if task.exception():
+                rich.print("ServiceX Exception", task.exception())
+                if download_files_task:
+                    download_files_task.cancel("Transform failed")
+                raise task.exception()
+
             if self.current_status.files_failed:
                 rich.print(f"[bold red]Transforms completed with failures[/bold red] {self.current_status.files_failed} files failed out of {self.current_status.files}")
             else:
                 rich.print("Transforms completed successfully")
 
-            if task.exception():
-                print("------>", task.exception())
-                print(task.get_stack())
-                if download_files_task:
-                    download_files_task.cancel("Transform failed")
-
         sx_request = self.transform_request
 
-        rich.print()
         with Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
@@ -197,37 +154,100 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             download_files_task = loop.create_task(self.download_files(progress, download_progress))
 
             try:
-                await download_files_task
+                return await download_files_task
             except CancelledError:
-                print("Shut down file downloads due to transform failure")
+                rich.print_json("Aborted file downloads due to transform failure")
+
+    async def monitor_status(self, progress: Progress, progress_task: TaskID, download_task: TaskID):
+        """
+        Poll ServiceX for the status of a transform. Update progress bars and keep track
+        of status. Once we know the number of files in the dataset, update the progress
+        bars.
+        """
+
+        # Actual number of files in the dataset. We only know this once the DID
+        # finder has completed its work. In the mean time transformers will already
+        # start up and begin work on the files we know about
+        final_count = None
+
+        while True:
+            s = await self.servicex.get_transform_status(self.request_id)
+
+            # Is this the first time we've polled status? We now know the request ID.
+            # Update the display.
+            if not self.current_status:
+                rich.print(f"[bold]ServiceX Transform {s.request_id}[/bold]")
+
+            self.current_status = s
+
+            # Do we finally know the final number of files in the dataset? Now is the
+            # time to properly initialize the progress bars
+            if not final_count and self.current_status.files:
+                final_count = self.current_status.files
+                progress.update(progress_task, total=final_count)
+                progress.start_task(progress_task)
+
+                progress.update(download_task, total=final_count)
+                progress.start_task(download_task)
+
+            progress.update(progress_task, completed=self.current_status.files_completed)
+
+            # We can only initialize the minio adapter with data from the transform
+            # status. This includes the minio host and credentials. We use the
+            # transform id as the bucket.
+            if not self.minio:
+                self.minio = MinioAdapter.for_transform(self.current_status)
+
+            if self.current_status.status == Status.complete:
+                self.files_completed = self.current_status.files_completed
+                self.files_failed = self.current_status.files_failed
+                return
+
+            await asyncio.sleep(self.servicex_polling_interval)
 
     async def download_files(self, progress: Progress, download_progress: TaskID):
+        """
+        Task to monitor the list of files in the transform output's bucket. Any new files
+        will be downloaded.
+        """
         files_seen = set()
+        downloaded_file_paths = []
         download_tasks = []
         loop = asyncio.get_running_loop()
 
         async def download_file(minio: MinioAdapter, filename: str, local_path: str,  progress: Progress, download_progress: TaskID):
+            downloaded_file_paths.append(Path(os.path.join(local_path, filename)))
             await minio.download_file(filename, local_path)
             progress.advance(download_progress)
 
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(self.minio_polling_interval)
             if self.minio:
                 files = await self.minio.list_bucket()
                 for file in files:
                     if file.filename not in files_seen:
-                        download_tasks.append(loop.create_task(download_file(self.minio,file.filename, "foo", progress, download_progress)))
+                        download_tasks.append(loop.create_task(download_file(self.minio,file.filename,
+                                                                             self.configuration.cache_path,
+                                                                             progress, download_progress)))
                         files_seen.add(file.filename)
 
+            # Once the transform is complete we can stop polling since all of the files
+            # are guaranteed to be in the bucket.
             if self.current_status and self.current_status.status == Status.complete:
                 break
-        await asyncio.gather(*download_tasks)
 
-    def as_pandas(self):
+        # Now just wait until all of our tasks complete
+        await asyncio.gather(*download_tasks)
+        return downloaded_file_paths
+
+    async def as_parquet_files(self):
         self.result_format = ResultFormat.parquet
-        sx_request = self.transform_request
-        self.request_id = self.servicex.submit_transform(sx_request)
-        print("Request running ", self.request_id)
+        return await self.submit_and_download()
+
+    async def as_pandas(self):
+        parquet_files = await self.as_parquet_files()
+        dataframes = [pandas.read_parquet(p.as_posix()) for p in parquet_files]
+        return dataframes
 
     def generate_qastle(self, a: ast.AST) -> str:
         """Generate the qastle from the ast of the query.

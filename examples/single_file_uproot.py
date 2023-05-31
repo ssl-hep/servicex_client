@@ -30,15 +30,11 @@ import asyncio
 from servicex_client.dataset_identifier import RucioDatasetIdentifier, FileListDataset
 from servicex_client.servicex_client import ServiceXClient
 
-sx = ServiceXClient(backend="testing4")
-print(sx.get_code_generators())
-
+sx = ServiceXClient(backend="localhost")
 dataset_id = FileListDataset("root://eospublic.cern.ch//eos/opendata/atlas/OutreachDatasets/2020-01-22/4lep/MC/mc_345060.ggH125_ZZ4lep.4lep.root")
 
-ds = sx.func_adl_uproot_dataset(dataset_id)
+ds = sx.func_adl_uproot_dataset(dataset_id, codegen="uproot")
 
-sx2 = ds.Select(lambda e: {'lep_pt': e['lep_pt']}).as_parquet_files()
-sx3 = asyncio.run(sx2)
-
+sx3 = asyncio.run(ds.Select(lambda e: {'lep_pt': e['lep_pt']}).as_pandas())
 print(sx3)
 

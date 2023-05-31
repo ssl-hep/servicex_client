@@ -53,6 +53,9 @@ class ServiceXClient:
             self.servicex = ServiceXAdapter(self.endpoints[backend].endpoint,
                                             refresh_token=self.endpoints[backend].token)
 
+        # Cache available code generators
+        self.code_generators = set(self.get_code_generators().keys())
+
     async def get_transforms_async(self):
         return self.servicex.get_transforms()
 
@@ -74,7 +77,10 @@ class ServiceXClient:
                                 title: str = "ServiceX Client",
                                 codegen: str = "uproot"
                                 ):
+        if codegen not in self.code_generators:
+            raise NameError(f"{codegen} code generator not supported by serviceX deployment at {self.servicex.url}")
+
         return ServiceXFuncADLUproot(dataset_identifier, sx_adapter=self.servicex,
-                                     title=title, codegen=codegen)
+                                     title=title, codegen=codegen, config=self.config)
 
 

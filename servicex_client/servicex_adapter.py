@@ -118,5 +118,7 @@ class ServiceXAdapter:
                                  headers=headers)
             if r.status_code == 401:
                 raise AuthorizationError(f"Not authorized to access serviceX at {self.url}")
+            if r.status_code == 404:
+                raise ValueError(f"Transform ID {request_id} not found")
             status = TransformStatus(**r.json())
             return status
