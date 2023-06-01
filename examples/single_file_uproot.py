@@ -33,7 +33,7 @@ from servicex_client.servicex_client import ServiceXClient
 sx = ServiceXClient(backend="localhost")
 dataset_id = FileListDataset("root://eospublic.cern.ch//eos/opendata/atlas/OutreachDatasets/2020-01-22/4lep/MC/mc_345060.ggH125_ZZ4lep.4lep.root")
 
-ds = sx.func_adl_uproot_dataset(dataset_id, codegen="uproot")
+ds = sx.func_adl_uproot_dataset(dataset_id, codegen="uproot", title="Pandas")
 
 sx3 = asyncio.run(ds.Select(lambda e: {'lep_pt': e['lep_pt']}).as_pandas())
 print(sx3)

@@ -25,12 +25,14 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import tempfile
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from qastle import Any
 
 from func_adl import EventDataset
+from servicex_client.configuration import Configuration
 
 from servicex_client.dataset_identifier import FileListDataset
 from servicex_client.func_adl.servicex_dataset_source import ServiceXDatasetSourceBase
@@ -38,6 +40,7 @@ from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUpr
 from servicex_client.minio_adpater import MinioAdapter
 from servicex_client.models import TransformStatus, Status, ResultDestination, ResultFile, \
     ResultFormat
+from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 
 transform_status = TransformStatus(
@@ -118,11 +121,14 @@ async def test_submit(mocker):
 def test_transform_request():
     servicex = AsyncMock()
     did = FileListDataset("/foo/bar/baz.root")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        config = Configuration(cache_path=temp_dir, api_endpoints=[])
+        cache = QueryCache(config)
+        datasource = ServiceXFuncADLUproot(dataset_identifier=did,
+                                           codegen="uproot",
+                                           sx_adapter=servicex,
+                                           config=config, query_cache=cache)
 
-    datasource = ServiceXFuncADLUproot(dataset_identifier=did,
-                                       codegen="uproot",
-                                       sx_adapter=servicex)
-
-    q = datasource.Select(lambda e: {'lep_pt': e['lep_pt']}).set_result_format(ResultFormat.parquet).transform_request
-    print("Qastle is ", q)
+        q = datasource.Select(lambda e: {'lep_pt': e['lep_pt']}).set_result_format(ResultFormat.parquet).transform_request
+        print("Qastle is ", q)
 

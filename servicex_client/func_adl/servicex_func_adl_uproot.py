@@ -34,6 +34,7 @@ from qastle import python_ast_to_text_ast
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.func_adl.servicex_dataset_source import ServiceXDatasetSourceBase
+from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 
 
@@ -46,13 +47,15 @@ class ServiceXFuncADLUproot(ServiceXDatasetSourceBase):
                  sx_adapter: ServiceXAdapter = None,
                  title: str = "ServiceX Client",
                  codegen: str = None,
-                 config: Configuration = None
+                 config: Configuration = None,
+                 query_cache: QueryCache = None
                  ):
         super().__init__(dataset_identifier=dataset_identifier,
                          title=title,
                          codegen=codegen,
                          sx_adapter=sx_adapter,
-                         config=config)
+                         config=config,
+                         query_cache=query_cache)
 
     # def generate_qastle(self, a: ast.Call) -> str:
     #     '''Genrate the `qastle` for a query to the uproot backend

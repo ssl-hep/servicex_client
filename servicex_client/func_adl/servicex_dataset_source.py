@@ -28,6 +28,7 @@
 import ast
 import asyncio
 import concurrent.futures
+import copy
 import logging
 import os.path
 from abc import ABC
@@ -35,7 +36,7 @@ from asyncio import Task, CancelledError
 from pathlib import Path
 
 import pandas
-from rich.live import Live
+import typing
 from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
     TimeRemainingColumn
 from typing import TypeVar, Any, cast, List, Optional, Union
@@ -43,6 +44,7 @@ from typing import TypeVar, Any, cast, List, Optional, Union
 import rich
 from qastle import python_ast_to_text_ast
 from rich.table import Table
+from tinydb import TinyDB
 
 from func_adl import EventDataset, ObjectStream
 from servicex_client.configuration import Configuration
@@ -51,6 +53,7 @@ from servicex_client.func_adl.util import has_tuple, FuncADLServerException, has
 from servicex_client.minio_adpater import MinioAdapter
 from servicex_client.models import TransformRequest, ResultDestination, ResultFormat, \
     Status
+from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 
 T = TypeVar("T")
@@ -68,11 +71,14 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             codegen: str = None,
             sx_adapter: ServiceXAdapter = None,
             config: Configuration = None,
+            query_cache: QueryCache = None,
             servicex_polling_interval: int = 10,
             minio_polling_interval: int = 5):
         super().__init__(item_type=Any)
         self.configuration = config
+        self.cache = query_cache
         self.current_status = None
+        self.download_path = None
         self.result_format = None
         self.minio = None
         self.files_failed = None
@@ -89,6 +95,28 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         self.servicex_polling_interval = servicex_polling_interval
         self.minio_polling_interval = minio_polling_interval
 
+    def clone_with_new_ast(self, new_ast: ast.AST, new_type: typing.Any):
+        """
+        Override the method from ObjectStream - We need to be careful because the query
+        cache is a tinyDB database that holds an open file pointer. We are not allowed
+        to clone an open file handle, so for this property we will copy by reference
+        and share it between the clones. Turns out ast class is also picky about copies,
+        so we set that explicitly.
+        :param new_ast:
+        :param new_type:
+        :return:
+        """
+        clone = copy.copy(self)
+        for attr, value in vars(self).items():
+            if type(value) == QueryCache:
+                setattr(clone, attr, value)
+            elif attr == "_q_ast":
+                setattr(clone, attr, new_ast)
+            else:
+                setattr(clone, attr, copy.deepcopy(value))
+
+        clone._item_type = new_type
+        return clone
 
     @property
     def transform_request(self):
@@ -117,7 +145,7 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         download_files_task = None
         loop = asyncio.get_running_loop()
 
-        def monitor_status_done(task: Task):
+        def transform_complete(task: Task):
             """
             Called when the Monitor task completes. This could be because of exception or
             the transform completed
@@ -137,6 +165,13 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
         sx_request = self.transform_request
 
+        # Let's see if this is in the cache already
+        cached_record = self.cache.get_transform_by_hash(sx_request.compute_hash())
+
+        if cached_record:
+            rich.print("Returning results from cache")
+            return cached_record.file_uris
+
         with Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
@@ -148,17 +183,24 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
             self.request_id = await self.servicex.submit_transform(sx_request)
 
-            monitor_task = loop.create_task(self.monitor_status(progress, transform_progress, download_progress))
-            monitor_task.add_done_callback(monitor_status_done)
+            monitor_task = loop.create_task(self.transform_status_listener(progress, transform_progress, download_progress))
+            monitor_task.add_done_callback(transform_complete)
 
             download_files_task = loop.create_task(self.download_files(progress, download_progress))
 
             try:
-                return await download_files_task
+                downloaded_files = await download_files_task
+
+                # Update the cache
+                self.cache.cache_transform(sx_request, self.current_status,
+                                           self.download_path.as_posix(),
+                                           downloaded_files)
+                return downloaded_files
             except CancelledError:
                 rich.print_json("Aborted file downloads due to transform failure")
 
-    async def monitor_status(self, progress: Progress, progress_task: TaskID, download_task: TaskID):
+    async def transform_status_listener(self, progress: Progress,
+                                        progress_task: TaskID, download_task: TaskID):
         """
         Poll ServiceX for the status of a transform. Update progress bars and keep track
         of status. Once we know the number of files in the dataset, update the progress
@@ -166,7 +208,7 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         """
 
         # Actual number of files in the dataset. We only know this once the DID
-        # finder has completed its work. In the mean time transformers will already
+        # finder has completed its work. In the meantime transformers will already
         # start up and begin work on the files we know about
         final_count = None
 
@@ -174,9 +216,10 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             s = await self.servicex.get_transform_status(self.request_id)
 
             # Is this the first time we've polled status? We now know the request ID.
-            # Update the display.
+            # Update the display and set our download directory.
             if not self.current_status:
                 rich.print(f"[bold]ServiceX Transform {s.request_id}[/bold]")
+                self.download_path = self.cache.cache_path_for_transform(s)
 
             self.current_status = s
 
@@ -215,9 +258,9 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         download_tasks = []
         loop = asyncio.get_running_loop()
 
-        async def download_file(minio: MinioAdapter, filename: str, local_path: str,  progress: Progress, download_progress: TaskID):
-            downloaded_file_paths.append(Path(os.path.join(local_path, filename)))
-            await minio.download_file(filename, local_path)
+        async def download_file(minio: MinioAdapter, filename: str,  progress: Progress, download_progress: TaskID):
+            await minio.download_file(filename, self.download_path)
+            downloaded_file_paths.append(os.path.join(self.download_path, filename))
             progress.advance(download_progress)
 
         while True:
@@ -226,9 +269,9 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                 files = await self.minio.list_bucket()
                 for file in files:
                     if file.filename not in files_seen:
-                        download_tasks.append(loop.create_task(download_file(self.minio,file.filename,
-                                                                             self.configuration.cache_path,
-                                                                             progress, download_progress)))
+                        download_tasks.append(
+                            loop.create_task(download_file(self.minio, file.filename,
+                                                           progress, download_progress)))
                         files_seen.add(file.filename)
 
             # Once the transform is complete we can stop polling since all of the files
@@ -244,9 +287,13 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         self.result_format = ResultFormat.parquet
         return await self.submit_and_download()
 
+    async def as_root_files(self):
+        self.result_format = ResultFormat.root_file
+        return await self.submit_and_download()
+
     async def as_pandas(self):
         parquet_files = await self.as_parquet_files()
-        dataframes = [pandas.read_parquet(p.as_posix()) for p in parquet_files]
+        dataframes = [pandas.read_parquet(p) for p in parquet_files]
         return dataframes
 
     def generate_qastle(self, a: ast.AST) -> str:

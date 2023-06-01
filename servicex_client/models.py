@@ -25,6 +25,7 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import hashlib
 from datetime import datetime
 from enum import Enum
 
@@ -63,6 +64,13 @@ class TransformRequest(BaseModel):
 
     class Config:
         allow_population_by_field_name = True
+
+    def compute_hash(self):
+        sha = hashlib.sha256(str([self.did, self.selection, self.tree_name,
+                                  self.codegen, self.image,
+                                  self.result_format.name, self.file_list]).
+                             encode("utf-8"))
+        return sha.hexdigest()
 
 
 class TransformStatus(BaseModel):

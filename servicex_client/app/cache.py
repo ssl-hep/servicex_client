@@ -25,46 +25,61 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from typing import Optional
+import os
+import shutil
 
 import rich
 import typer
-from servicex_client._version import __version__
-from servicex_client.app.cli_options import url_cli_option, backend_cli_option
-from servicex_client.app.transforms import transforms_app
-from servicex_client.app.cache import cache_app
+from rich.prompt import Confirm
+from rich.table import Table
+
 from servicex_client.servicex_client import ServiceXClient
 
-app = typer.Typer(no_args_is_help=True)
+cache_app = typer.Typer(name="cache", no_args_is_help=True)
 
-app.add_typer(transforms_app)
-app.add_typer(cache_app)
-def show_version(show: bool):
-    """Display the installed version and quit."""
-    if show:
-        rich.print(f"garden-ai {__version__}")
-        raise typer.Exit()
 
-@app.callback()
-def main_info(
-    version: Optional[bool] = typer.Option(
-        None, "--version", callback=show_version, is_eager=True
-    )
-):
+@cache_app.callback()
+def transforms():
     """
-    🌱 Hello, Garden 🌱
+    sub-commands for creating and manipulating the local query cache
     """
     pass
 
 
-@app.command(no_args_is_help=True)
-def list_codegens(
-        url: Optional[str] = url_cli_option,
-        backend: Optional[str] = backend_cli_option
-):
-    sx = ServiceXClient(url=url, backend=backend)
-    rich.print_json(data=sx.get_code_generators())
+@cache_app.command()
+def list():
+    sx = ServiceXClient()
+    cache = sx.query_cache
+    table = Table(title="Cached Queries")
+    table.add_column("Title")
+    table.add_column("Transform ID")
+    table.add_column("Run Date")
+    table.add_column("Files")
+    table.add_column("Format")
+    runs = cache.search_cached_queries()
+    for r in runs:
+        table.add_row(
+            r.title,
+            r.request_id,
+            r.submit_time.astimezone().strftime("%a, %Y-%m-%d %H:%M"),
+            str(r.files),
+            r.result_format
+        )
+    rich.print(table)
 
 
-if __name__ == "__main__":
-    app()
+@cache_app.command()
+def clear():
+    if Confirm.ask("Really clear cache and delete downloaded files?"):
+        sx = ServiceXClient()
+        shutil.rmtree(sx.config.cache_path)
+        rich.print("Cache cleared")
+
+
+@cache_app.command(no_args_is_help=True)
+def delete(transform_id: str = typer.Option(None, "-t", "--transform-id", help="Transform ID")):
+    sx = ServiceXClient()
+    cache = sx.query_cache
+    rec = cache.get_transform_by_request_id(transform_id)
+    shutil.rmtree(rec.data_dir)
+    cache.delete_record_by_request_id(rec.request_id)

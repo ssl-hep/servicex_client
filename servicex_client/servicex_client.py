@@ -27,12 +27,16 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import asyncio
 import logging
+import os.path
+import pathlib
 from typing import Union
 
 import rich
+from tinydb import TinyDB
 
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
+from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUproot
 
@@ -41,6 +45,9 @@ class ServiceXClient:
     def __init__(self, backend=None, url=None, config_path=None):
         self.config = Configuration.read(config_path)
         self.endpoints = self.config.endpoint_dict()
+
+        if not url and not backend:
+            backend = self.config.default_endpoint
 
         if bool(url) == bool(backend):
             raise ValueError("Only specify backend or url... not both")
@@ -53,7 +60,10 @@ class ServiceXClient:
             self.servicex = ServiceXAdapter(self.endpoints[backend].endpoint,
                                             refresh_token=self.endpoints[backend].token)
 
+        self.query_cache = QueryCache(self.config)
+
         # Cache available code generators
+        # @todo allow complete offline use
         self.code_generators = set(self.get_code_generators().keys())
 
     async def get_transforms_async(self):
@@ -76,11 +86,12 @@ class ServiceXClient:
                                     DataSetIdentifier, FileListDataset],
                                 title: str = "ServiceX Client",
                                 codegen: str = "uproot"
-                                ):
+                                ) -> ServiceXFuncADLUproot:
         if codegen not in self.code_generators:
             raise NameError(f"{codegen} code generator not supported by serviceX deployment at {self.servicex.url}")
 
         return ServiceXFuncADLUproot(dataset_identifier, sx_adapter=self.servicex,
-                                     title=title, codegen=codegen, config=self.config)
+                                     title=title, codegen=codegen, config=self.config,
+                                     query_cache=self.query_cache)
 
 
