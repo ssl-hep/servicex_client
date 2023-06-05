@@ -107,4 +107,3 @@ class ResultFile(BaseModel):
     filename: str
     size: int
     extension: str
-

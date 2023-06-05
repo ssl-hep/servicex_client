@@ -25,11 +25,7 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-import ast
 from typing import Union
-
-import qastle
-from qastle import python_ast_to_text_ast
 
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
@@ -56,20 +52,3 @@ class ServiceXFuncADLUproot(ServiceXDatasetSourceBase):
                          sx_adapter=sx_adapter,
                          config=config,
                          query_cache=query_cache)
-
-    # def generate_qastle(self, a: ast.Call) -> str:
-    #     '''Genrate the `qastle` for a query to the uproot backend
-    #
-    #     Args:
-    #         a (ast.AST): The query
-    #
-    #     Returns:
-    #         str: The `qastle`, ready to pass to the back end.
-    #     '''
-    #     # We need to pull the top off it - the request for the particular data type (parquet, pandas, etc.)
-    #     # should not get passed to the transformer.
-    #     source = a.args[0]
-    #
-    #     # And that is all we need!
-    #     return python_ast_to_text_ast(qastle.insert_linq_nodes(source))
-

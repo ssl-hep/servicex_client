@@ -57,6 +57,3 @@ def test_populate_transform_request(transform_request):
     did2 = RucioDatasetIdentifier("123-456")
     did2.populate_transform_request(transform_request)
     assert transform_request.did == "rucio://123-456"
-
-
-

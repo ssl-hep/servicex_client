@@ -87,4 +87,3 @@ def completed_status() -> TransformStatus:
            "minio-secured": False,
            "minio-access-key": "miniouser",
            "minio-secret-key": "secret"})
-

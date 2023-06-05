@@ -31,7 +31,7 @@ from servicex_client.models import TransformRequest
 
 
 class DataSetIdentifier:
-    def __init__(self, scheme:str, dataset: str, num_files: int=None):
+    def __init__(self, scheme: str, dataset: str, num_files: int = None):
         self.scheme = scheme
         self.dataset = dataset
         self.num_files = num_files
@@ -61,5 +61,3 @@ class FileListDataset:
     def populate_transform_request(self, transform_request: TransformRequest) -> None:
         transform_request.file_list = self.files
         transform_request.did = None
-
-

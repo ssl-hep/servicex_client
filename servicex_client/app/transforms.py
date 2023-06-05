@@ -37,7 +37,6 @@ from rich.table import Table
 from servicex_client.app.cli_options import url_cli_option, backend_cli_option
 from servicex_client.minio_adpater import MinioAdapter
 from servicex_client.models import Status, ResultFile
-from servicex_client.servicex_adapter import ServiceXAdapter
 from servicex_client.servicex_client import ServiceXClient
 
 transforms_app = typer.Typer(name="transforms", no_args_is_help=True)
@@ -98,7 +97,7 @@ def files(
 
 @transforms_app.command(no_args_is_help=True)
 def download(
-        url: Optional[str] =  url_cli_option,
+        url: Optional[str] = url_cli_option,
         backend: Optional[str] = backend_cli_option,
         transform_id: str = typer.Option(None, "-t", "--transform-id",
                                          help="Transform ID"),

@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 import yaml
 
+
 class Endpoint(BaseModel):
     endpoint: str
     name: str
@@ -63,7 +64,6 @@ class Configuration(BaseModel):
             path_extra = f"in {config_path}" if config_path else ""
             raise NameError("Can't find .servicex config file " + path_extra)
 
-
     @classmethod
     def _add_from_path(cls, path: Path = None, walk_up_tree: bool = False):
         config = None
@@ -87,4 +87,3 @@ class Configuration(BaseModel):
                 break
             dir = dir.parent
         return config
-

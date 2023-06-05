@@ -28,6 +28,7 @@
 import ast
 from typing import Optional, cast
 
+
 class FuncADLServerException (Exception):
     'Thrown when an exception happens contacting the server'
     def __init__(self, msg):
@@ -65,6 +66,7 @@ def has_tuple(a: ast.AST) -> bool:
     assert isinstance(func_called, ast.Lambda)
     body = func_called.body
     return isinstance(body, ast.Tuple)
+
 
 def has_col_names(a: ast.AST) -> bool:
     """Determine if any column names were specified
@@ -107,4 +109,3 @@ def has_col_names(a: ast.AST) -> bool:
     # as we can tell.
 
     return False
-

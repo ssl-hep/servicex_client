@@ -27,26 +27,21 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import ast
 import asyncio
-import concurrent.futures
 import copy
 import logging
 import os.path
+import typing
 from abc import ABC
 from asyncio import Task, CancelledError
-from pathlib import Path
-
-import pandas
-import typing
-from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
-    TimeRemainingColumn
 from typing import TypeVar, Any, cast, List, Optional, Union
 
+import pandas
 import rich
 from qastle import python_ast_to_text_ast
-from rich.table import Table
-from tinydb import TinyDB
+from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
+    TimeRemainingColumn
 
-from func_adl import EventDataset, ObjectStream
+from func_adl import EventDataset
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.func_adl.util import has_tuple, FuncADLServerException, has_col_names
@@ -124,7 +119,7 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
     @property
     def transform_request(self):
         if not self.result_format:
-            raise ValueError("Unable to determine the result file format. Use set_result_format method")
+            raise ValueError("Unable to determine the result file format. Use set_result_format method")  # NOQA E501
 
         sx_request = TransformRequest(
             title=self.title,
@@ -165,7 +160,9 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                 raise task.exception()
 
             if self.current_status.files_failed:
-                rich.print(f"[bold red]Transforms completed with failures[/bold red] {self.current_status.files_failed} files failed out of {self.current_status.files}")
+                rich.print(f"[bold red]Transforms completed with failures[/bold red] "
+                           f"{self.current_status.files_failed} files failed out of "
+                           f"{self.current_status.files}")
             else:
                 rich.print("Transforms completed successfully")
 
@@ -186,16 +183,23 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         ) as progress:
             transform_progress = progress.add_task("Transform", start=False, total=None)
 
-            minio_progress_bar_title = "Download" if not signed_urls_only else "Signing URLS"
-            download_progress = progress.add_task(minio_progress_bar_title, start=False, total=None)
+            minio_progress_bar_title = "Download" \
+                if not signed_urls_only else "Signing URLS"
+
+            download_progress = progress.add_task(minio_progress_bar_title,
+                                                  start=False, total=None)
 
             self.request_id = await self.servicex.submit_transform(sx_request)
 
-            monitor_task = loop.create_task(self.transform_status_listener(progress, transform_progress, download_progress))
+            monitor_task = loop.create_task(
+                self.transform_status_listener(progress,
+                                               transform_progress,
+                                               download_progress))
             monitor_task.add_done_callback(transform_complete)
 
-            download_files_task = loop.create_task(self.download_files(signed_urls_only,
-                                                                       progress, download_progress))
+            download_files_task = loop.create_task(
+                self.download_files(signed_urls_only,
+                                    progress, download_progress))
 
             try:
                 downloaded_files = await download_files_task
@@ -257,7 +261,9 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
             await asyncio.sleep(self.servicex_polling_interval)
 
-    async def download_files(self, signed_urls_only: bool, progress: Progress, download_progress: TaskID):
+    async def download_files(self, signed_urls_only: bool,
+                             progress: Progress,
+                             download_progress: TaskID):
         """
         Task to monitor the list of files in the transform output's bucket. Any new files
         will be downloaded.
@@ -267,12 +273,16 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         download_tasks = []
         loop = asyncio.get_running_loop()
 
-        async def download_file(minio: MinioAdapter, filename: str,  progress: Progress, download_progress: TaskID):
+        async def download_file(minio: MinioAdapter, filename: str,
+                                progress: Progress,
+                                download_progress: TaskID):
             await minio.download_file(filename, self.download_path)
             downloaded_file_paths.append(os.path.join(self.download_path, filename))
             progress.advance(download_progress)
 
-        async def get_signed_url(minio: MinioAdapter, filename: str,  progress: Progress, download_progress: TaskID):
+        async def get_signed_url(minio: MinioAdapter, filename: str,
+                                 progress: Progress,
+                                 download_progress: TaskID):
             url = await minio.get_signed_url(filename)
             downloaded_file_paths.append(url)
             progress.advance(download_progress)
@@ -285,12 +295,15 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                     if file.filename not in files_seen:
                         if signed_urls_only:
                             download_tasks.append(
-                                loop.create_task(get_signed_url(self.minio, file.filename, progress, download_progress))
+                                loop.create_task(
+                                    get_signed_url(self.minio, file.filename,
+                                                   progress, download_progress))
                             )
                         else:
                             download_tasks.append(
-                                loop.create_task(download_file(self.minio, file.filename,
-                                                               progress, download_progress)))
+                                loop.create_task(
+                                    download_file(self.minio, file.filename,
+                                                  progress, download_progress)))
                         files_seen.add(file.filename)
 
             # Once the transform is complete we can stop polling since all of the files
@@ -342,7 +355,8 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             stream = a.args[0]
             col_names = a.args[1]
             if method_to_call == "get_data_rootfiles_async":
-                # If we have no column names, then we must be using a dictionary to set them - so just pass that
+                # If we have no column names, then we must be using a dictionary to
+                # set them - so just pass that
                 # directly.
                 assert isinstance(
                     col_names, (ast.List, ast.Constant, ast.Str)
@@ -453,15 +467,15 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                 name = self._format_map[data_type]
             else:
                 raise FuncADLServerException(
-                    f"Internal error - asked for {a_func.id} - but this dataset does not support it."
+                    f"Internal error - asked for {a_func.id} - but this dataset does not support it."  # NOQA 501
                 )
 
         # Run the query for real!
         attr = getattr(self._ds, name)
         result = await attr(q_str, title=title)
 
-        # If this is a single column awkward query, and the user did not specify a column name, then
-        # we will return the first column.
+        # If this is a single column awkward query, and the user did not
+        # specify a column name, then we will return the first column.
         if (
             "awkward" in name
             and (not has_col_names(a))

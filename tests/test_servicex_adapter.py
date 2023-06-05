@@ -71,10 +71,10 @@ async def test_get_transforms_wlcg_bearer_token(decode, post, get, servicex,
     token_file.write("luckycharms")
     token_file.close()
 
-    os.environ['BEARER_TOKEN_FILE']=token_file.name
+    os.environ['BEARER_TOKEN_FILE'] = token_file.name
 
     get.return_value = httpx.Response(200, json=transform_status_response)
-    decode.return_value={'exp': math.inf}
+    decode.return_value = {'exp': math.inf}
     await servicex.get_transforms()
 
     # Try with an expired token
@@ -91,7 +91,7 @@ async def test_get_transforms_wlcg_bearer_token(decode, post, get, servicex,
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.get')
 async def test_get_transforms_with_refresh(get, post, transform_status_response):
     servicex = ServiceXAdapter(url="https://servicex.org", refresh_token="refrescas")
-    post.return_value = httpx.Response(200, json={"access_token":"luckycharms"})
+    post.return_value = httpx.Response(200, json={"access_token": "luckycharms"})
     get.return_value = httpx.Response(200, json=transform_status_response)
     await servicex.get_transforms()
 

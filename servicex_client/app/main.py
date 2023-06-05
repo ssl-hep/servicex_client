@@ -39,11 +39,14 @@ app = typer.Typer(no_args_is_help=True)
 
 app.add_typer(transforms_app)
 app.add_typer(cache_app)
+
+
 def show_version(show: bool):
     """Display the installed version and quit."""
     if show:
         rich.print(f"garden-ai {__version__}")
         raise typer.Exit()
+
 
 @app.callback()
 def main_info(

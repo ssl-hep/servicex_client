@@ -27,10 +27,9 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import os.path
 from pathlib import Path
-from typing import List, Coroutine, Any
+from typing import List
 
 from miniopy_async import Minio
-from miniopy_async.datatypes import Object
 
 from servicex_client.models import ResultFile, TransformStatus
 
@@ -39,7 +38,7 @@ class MinioAdapter:
     def __init__(self, endpoint_host: str,
                  secure: bool,
                  access_key: str,
-                 secret_key:str,
+                 secret_key: str,
                  bucket: str):
         self.minio = Minio(
             endpoint_host,
@@ -68,7 +67,7 @@ class MinioAdapter:
             extension=obj.object_name.split(".")[-1]
         ) for obj in objects]
 
-    async def download_file(self, object_name:str, local_dir: str) -> Path:
+    async def download_file(self, object_name: str, local_dir: str) -> Path:
         os.makedirs(local_dir, exist_ok=True)
         path = Path(os.path.join(local_dir, object_name))
         _ = await self.minio.fget_object(
@@ -78,7 +77,7 @@ class MinioAdapter:
         )
         return path.resolve()
 
-    async def get_signed_url(self, object_name: str) -> str :
+    async def get_signed_url(self, object_name: str) -> str:
         return await self.minio.get_presigned_url(
             bucket_name=self.bucket,
             object_name=object_name,

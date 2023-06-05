@@ -31,8 +31,6 @@ import tempfile
 import pytest
 
 from servicex_client.configuration import Configuration
-from servicex_client.models import TransformRequest, ResultDestination, ResultFormat, \
-    TransformStatus
 from servicex_client.query_cache import QueryCache, CacheException
 
 file_uris = ["/tmp/foo1.root", "/tmp/foo2.root"]
@@ -89,6 +87,7 @@ def test_cache_transform(transform_request, completed_status):
 
         cache.delete_record_by_request_id("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")
         assert len(cache.cached_queries()) == 0
+
 
 def test_cache_path(completed_status):
     with tempfile.TemporaryDirectory() as temp_dir:

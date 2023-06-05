@@ -25,18 +25,14 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-import asyncio
-import json
 import os
 from datetime import datetime
-from typing import Union, Optional, Dict
+from typing import Optional, Dict
 
 import httpx
-import requests
 import rich
 from google.auth import jwt
 
-from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.models import TransformRequest, TransformStatus
 
 
@@ -75,18 +71,20 @@ class ServiceXAdapter:
 
         if bearer_token:
             self.token = bearer_token
-        if not bearer_token and  not self.refresh_token:
+        if not bearer_token and not self.refresh_token:
             return {}
 
         now = datetime.utcnow().timestamp()
-        if not self.token or float(jwt.decode(self.token, verify=False)["exp"]) - now < 0:
+        if not self.token or \
+                float(jwt.decode(self.token, verify=False)["exp"]) - now < 0:
             await self._get_token(client)
         return {"Authorization": f"Bearer {self.token}"}
 
     async def get_transforms(self):
         async with httpx.AsyncClient() as client:
             headers = await self._get_authorization(client)
-            r = await client.get(url=f"{self.url}/servicex/transformation", headers=headers)
+            r = await client.get(url=f"{self.url}/servicex/transformation",
+                                 headers=headers)
             if r.status_code == 401:
                 raise AuthorizationError(f"Not authorized to access serviceX at {self.url}")
 

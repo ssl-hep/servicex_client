@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import asyncio
 
-from servicex_client.dataset_identifier import RucioDatasetIdentifier, FileListDataset
+from servicex_client.dataset_identifier import RucioDatasetIdentifier
 from servicex_client.servicex_client import ServiceXClient
 
 sx = ServiceXClient(backend="testing4")
@@ -41,4 +41,3 @@ sx2 = ds.Select(lambda e: {'el_pt': e['el_pt']}).as_parquet_files()
 sx3 = asyncio.run(sx2)
 
 print(sx3)
-

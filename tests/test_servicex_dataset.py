@@ -26,28 +26,23 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import tempfile
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from qastle import Any
 
-from func_adl import EventDataset
 from servicex_client.configuration import Configuration
-
 from servicex_client.dataset_identifier import FileListDataset
 from servicex_client.func_adl.servicex_dataset_source import ServiceXDatasetSourceBase
 from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUproot
-from servicex_client.minio_adpater import MinioAdapter
-from servicex_client.models import TransformStatus, Status, ResultDestination, ResultFile, \
+from servicex_client.models import TransformStatus, Status, ResultFile, \
     ResultFormat
 from servicex_client.query_cache import QueryCache
-from servicex_client.servicex_adapter import ServiceXAdapter
 
 transform_status = TransformStatus(
     **{'request_id': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf',
        'did': 'File List Provided in Request',
        'columns': None,
-       'selection': "(Where (SelectMany (call EventDataset) (lambda (list e) (call (attr e 'Jets') 'AntiKt4EMTopoJets'))) (lambda (list j) (and (> (/ (call (attr j 'pt')) 1000) 20) (< (call abs (/ (call (attr j 'eta')) 1000)) 4.5))))",
+       'selection': "(Where (SelectMany (call EventDataset) (lambda (list e) (call (attr e 'Jets') 'AntiKt4EMTopoJets'))) (lambda (list j) (and (> (/ (call (attr j 'pt')) 1000) 20) (< (call abs (/ (call (attr j 'eta')) 1000)) 4.5))))",  # NOQA 501
        'tree-name': None,
        'image': 'sslhep/servicex_func_adl_uproot_transformer:uproot4',
        'workers': None, 'result-destination': 'object-store',
@@ -97,27 +92,30 @@ file2 = ResultFile(
     extension="parquet"
 )
 
+
 @pytest.mark.asyncio
 async def test_submit(mocker):
     servicex = AsyncMock()
     servicex.submit_transform = AsyncMock()
     servicex.submit_transform.return_value = {'request_id': '123-456-789"'}
     servicex.get_transform_status = AsyncMock()
-    servicex.get_transform_status.side_effect=[transform_status1, transform_status2, transform_status3]
+    servicex.get_transform_status.side_effect = [transform_status1,
+                                                 transform_status2,
+                                                 transform_status3]
 
     mock_minio = AsyncMock()
     mock_minio.list_bucket = AsyncMock(side_effect=[[file1], [file1, file2]])
     mock_minio.download_file = AsyncMock()
 
     mock_cache = mocker.MagicMock(QueryCache)
-    mocker.patch("servicex_client.minio_adpater.MinioAdapter", return_value= mock_minio)
+    mocker.patch("servicex_client.minio_adpater.MinioAdapter", return_value=mock_minio)
     did = FileListDataset("/foo/bar/baz.root")
     datasource = ServiceXDatasetSourceBase(dataset_identifier=did,
                                            codegen="uproot",
                                            sx_adapter=servicex,
                                            query_cache=mock_cache)
     datasource.result_format = ResultFormat.parquet
-    result = await datasource.submit_and_download()
+    _ = await datasource.submit_and_download()
     print(mock_minio.download_file.call_args)
 
 
@@ -132,6 +130,8 @@ def test_transform_request():
                                            sx_adapter=servicex,
                                            config=config, query_cache=cache)
 
-        q = datasource.Select(lambda e: {'lep_pt': e['lep_pt']}).set_result_format(ResultFormat.parquet).transform_request
+        q = datasource.Select(
+            lambda e: {'lep_pt': e['lep_pt']})\
+            .set_result_format(ResultFormat.parquet)\
+            .transform_request
         print("Qastle is ", q)
-
