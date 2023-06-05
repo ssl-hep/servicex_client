@@ -25,46 +25,22 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import os
 import tempfile
+
+import pytest
 
 from servicex_client.configuration import Configuration
 from servicex_client.models import TransformRequest, ResultDestination, ResultFormat, \
     TransformStatus
-from servicex_client.query_cache import QueryCache
-
-request = TransformRequest(
-    title="Test submission",
-    did="rucio://foo.bar",
-    selection="(call EventDataset)",
-    codegen="uproot",
-    result_destination=ResultDestination.object_store,
-    result_format=ResultFormat.parquet
-)
-
-completed_status = TransformStatus(
-    **{'request_id': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf',
-       'did': 'File List Provided in Request',
-       'columns': None,
-       'selection': "(Where (SelectMany (call EventDataset) (lambda (list e) (call (attr e 'Jets') 'AntiKt4EMTopoJets'))) (lambda (list j) (and (> (/ (call (attr j 'pt')) 1000) 20) (< (call abs (/ (call (attr j 'eta')) 1000)) 4.5))))",
-       'tree-name': None,
-       'image': 'sslhep/servicex_func_adl_uproot_transformer:uproot4',
-       'workers': None, 'result-destination': 'object-store',
-       'result-format': 'parquet',
-       'workflow-name': 'selection_codegen',
-       'generated-code-cm': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf-generated-source',
-       'status': 'Submitted', 'failure-info': None,
-       'app-version': 'develop',
-       'code-gen-image': 'sslhep/servicex_code_gen_func_adl_uproot:v1.2.0',
-       'files': 1, 'files-completed': 0, 'files-failed': 0,
-       'files-remaining': 1,
-       'submit-time': '2023-05-25T20:05:05.564137Z',
-       'finish-time': 'None'})
+from servicex_client.query_cache import QueryCache, CacheException
 
 file_uris = ["/tmp/foo1.root", "/tmp/foo2.root"]
 
-def test_hash():
-    request1 = request.copy()
-    request2 = request.copy()
+
+def test_hash(transform_request):
+    request1 = transform_request.copy()
+    request2 = transform_request.copy()
 
     assert request1.compute_hash() == request2.compute_hash()
 
@@ -77,13 +53,65 @@ def test_hash():
     assert request1.compute_hash() != request2.compute_hash()
 
 
-def test_cache_transform():
+def test_cache_transform(transform_request, completed_status):
     with tempfile.TemporaryDirectory() as temp_dir:
         config = Configuration(cache_path=temp_dir, api_endpoints=[])
         cache = QueryCache(config)
-        cache.cache_transform(transform=request, completed_status=completed_status,
+        cache.cache_transform(transform=transform_request,
+                              completed_status=completed_status,
                               data_dir="/foo/bar", file_uris=file_uris)
 
-        test = cache.get_transform_by_hash(request.compute_hash())
+        test = cache.get_transform_by_hash(transform_request.compute_hash())
         assert test
-        print("--->", test)
+        assert test.title == "Test submission"
+        assert test.request_id == "b8c508d0-ccf2-4deb-a1f7-65c839eebabf"
+
+        test2 = cache.get_transform_by_request_id("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")
+        assert test2
+        assert test2.title == "Test submission"
+        assert test2.request_id == "b8c508d0-ccf2-4deb-a1f7-65c839eebabf"
+
+        assert not cache.get_transform_by_hash("thishashdoesnotexist")
+        assert not cache.get_transform_by_request_id("this-uuid-does-not-exist")
+
+        # make a duplicate record
+        cache.cache_transform(transform=transform_request,
+                              completed_status=completed_status,
+                              data_dir="/foo/baz", file_uris=file_uris)
+
+        with pytest.raises(CacheException):
+            _ = cache.get_transform_by_hash(transform_request.compute_hash())
+
+        with pytest.raises(CacheException):
+            _ = cache.get_transform_by_request_id("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")
+
+        assert len(cache.cached_queries()) == 2
+
+        cache.delete_record_by_request_id("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")
+        assert len(cache.cached_queries()) == 0
+
+def test_cache_path(completed_status):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        config = Configuration(cache_path=temp_dir, api_endpoints=[])
+        cache = QueryCache(config)
+        path_bits = os.path.split(cache.cache_path_for_transform(completed_status))
+        assert path_bits[0] == temp_dir
+        assert path_bits[1] == completed_status.request_id
+
+
+def test_record_delete(transform_request, completed_status):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        config = Configuration(cache_path=temp_dir, api_endpoints=[])
+        cache = QueryCache(config)
+        cache.cache_transform(transform=transform_request,
+                              completed_status=completed_status,
+                              data_dir="/foo/bar", file_uris=file_uris)
+
+        cache.cache_transform(transform=transform_request,
+                              completed_status=completed_status.copy(
+                                  update={"request_id": "02c64494-4529-49a7-a4a6-95661ea3936e"}),
+                              data_dir="/foo/baz", file_uris=file_uris)
+
+        assert len(cache.cached_queries()) == 2
+        cache.delete_record_by_request_id("02c64494-4529-49a7-a4a6-95661ea3936e")
+        assert len(cache.cached_queries()) == 1

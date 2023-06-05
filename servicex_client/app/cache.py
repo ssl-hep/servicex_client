@@ -56,7 +56,7 @@ def list():
     table.add_column("Run Date")
     table.add_column("Files")
     table.add_column("Format")
-    runs = cache.search_cached_queries()
+    runs = cache.cached_queries()
     for r in runs:
         table.add_row(
             r.title,

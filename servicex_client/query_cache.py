@@ -99,16 +99,12 @@ class QueryCache:
             return CacheRecord(**records[0])
 
     def cache_path_for_transform(self, transform_status: TransformStatus) -> Path:
-        if not self.config.cache_path:
-            base = Path(os.getcwd())
-        else:
-            base = Path(self.config.cache_path)
-
+        base = Path(self.config.cache_path)
         result = Path(os.path.join(base, transform_status.request_id))
         result.mkdir(parents=True, exist_ok=False)
         return result
 
-    def search_cached_queries(self) -> List[CacheRecord]:
+    def cached_queries(self) -> List[CacheRecord]:
         return [CacheRecord(**doc) for doc in self.db.all()]
 
     def delete_record_by_request_id(self, request_id: str):

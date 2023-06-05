@@ -75,20 +75,23 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             servicex_polling_interval: int = 10,
             minio_polling_interval: int = 5):
         super().__init__(item_type=Any)
+        self.servicex = sx_adapter
         self.configuration = config
         self.cache = query_cache
+
+        self.dataset_identifier = dataset_identifier
+        self.codegen = codegen
+        self.title = title
+
+        self.result_format = None
+        self.signed_urls = False
         self.current_status = None
         self.download_path = None
-        self.result_format = None
         self.minio = None
         self.files_failed = None
         self.files_completed = None
-        self.dataset_identifier = dataset_identifier
-        self.servicex = sx_adapter
         self._return_qastle = True
 
-        self.codegen = codegen
-        self.title = title
         self.request_id = None
 
         # Number of seconds in between ServiceX status polls
@@ -120,6 +123,9 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
     @property
     def transform_request(self):
+        if not self.result_format:
+            raise ValueError("Unable to determine the result file format. Use set_result_format method")
+
         sx_request = TransformRequest(
             title=self.title,
             codegen=self.codegen,
@@ -135,7 +141,7 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         self.result_format = result_format
         return self
 
-    async def submit_and_download(self):
+    async def submit_and_download(self, signed_urls_only: bool = False):
         """
         Submit the transform request to ServiceX. Poll the transform status to see when
         the transform completes and to get the number of files in the dataset along with
@@ -179,14 +185,17 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                 TimeRemainingColumn(compact=True, elapsed_when_finished=True),
         ) as progress:
             transform_progress = progress.add_task("Transform", start=False, total=None)
-            download_progress = progress.add_task("Download", start=False, total=None)
+
+            minio_progress_bar_title = "Download" if not signed_urls_only else "Signing URLS"
+            download_progress = progress.add_task(minio_progress_bar_title, start=False, total=None)
 
             self.request_id = await self.servicex.submit_transform(sx_request)
 
             monitor_task = loop.create_task(self.transform_status_listener(progress, transform_progress, download_progress))
             monitor_task.add_done_callback(transform_complete)
 
-            download_files_task = loop.create_task(self.download_files(progress, download_progress))
+            download_files_task = loop.create_task(self.download_files(signed_urls_only,
+                                                                       progress, download_progress))
 
             try:
                 downloaded_files = await download_files_task
@@ -248,7 +257,7 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
 
             await asyncio.sleep(self.servicex_polling_interval)
 
-    async def download_files(self, progress: Progress, download_progress: TaskID):
+    async def download_files(self, signed_urls_only: bool, progress: Progress, download_progress: TaskID):
         """
         Task to monitor the list of files in the transform output's bucket. Any new files
         will be downloaded.
@@ -263,15 +272,25 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
             downloaded_file_paths.append(os.path.join(self.download_path, filename))
             progress.advance(download_progress)
 
+        async def get_signed_url(minio: MinioAdapter, filename: str,  progress: Progress, download_progress: TaskID):
+            url = await minio.get_signed_url(filename)
+            downloaded_file_paths.append(url)
+            progress.advance(download_progress)
+
         while True:
             await asyncio.sleep(self.minio_polling_interval)
             if self.minio:
                 files = await self.minio.list_bucket()
                 for file in files:
                     if file.filename not in files_seen:
-                        download_tasks.append(
-                            loop.create_task(download_file(self.minio, file.filename,
-                                                           progress, download_progress)))
+                        if signed_urls_only:
+                            download_tasks.append(
+                                loop.create_task(get_signed_url(self.minio, file.filename, progress, download_progress))
+                            )
+                        else:
+                            download_tasks.append(
+                                loop.create_task(download_file(self.minio, file.filename,
+                                                               progress, download_progress)))
                         files_seen.add(file.filename)
 
             # Once the transform is complete we can stop polling since all of the files
@@ -295,6 +314,9 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
         parquet_files = await self.as_parquet_files()
         dataframes = [pandas.read_parquet(p) for p in parquet_files]
         return dataframes
+
+    async def as_signed_urls(self):
+        return await self.submit_and_download(signed_urls_only=True)
 
     def generate_qastle(self, a: ast.AST) -> str:
         """Generate the qastle from the ast of the query.

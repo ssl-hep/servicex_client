@@ -108,11 +108,14 @@ async def test_submit(mocker):
     mock_minio = AsyncMock()
     mock_minio.list_bucket = AsyncMock(side_effect=[[file1], [file1, file2]])
     mock_minio.download_file = AsyncMock()
+
+    mock_cache = mocker.MagicMock(QueryCache)
     mocker.patch("servicex_client.minio_adpater.MinioAdapter", return_value= mock_minio)
     did = FileListDataset("/foo/bar/baz.root")
     datasource = ServiceXDatasetSourceBase(dataset_identifier=did,
                                            codegen="uproot",
-                                           sx_adapter=servicex)
+                                           sx_adapter=servicex,
+                                           query_cache=mock_cache)
     datasource.result_format = ResultFormat.parquet
     result = await datasource.submit_and_download()
     print(mock_minio.download_file.call_args)

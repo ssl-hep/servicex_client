@@ -25,42 +25,57 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from unittest.mock import patch
+from pathlib import PosixPath
+from unittest.mock import AsyncMock
 
-import httpx
 import pytest
+from miniopy_async.datatypes import Object
+from pytest_asyncio import fixture
 
 from servicex_client.minio_adpater import MinioAdapter
-from servicex_client.models import TransformStatus
+from servicex_client.models import ResultFile
 
-test_transform = {'request_id': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf',
-                  'did': 'File List Provided in Request', 'columns': None,
-                  'selection': "(Where (SelectMany (call EventDataset) (lambda (list e) (call (attr e 'Jets') 'AntiKt4EMTopoJets'))) (lambda (list j) (and (> (/ (call (attr j 'pt')) 1000) 20) (< (call abs (/ (call (attr j 'eta')) 1000)) 4.5))))",
-                  'tree-name': None,
-                  'image': 'sslhep/servicex_func_adl_uproot_transformer:uproot4',
-                  'workers': None, 'result-destination': 'object-store',
-                  'result-format': 'parquet',
-                  'workflow-name': 'selection_codegen',
-                  'generated-code-cm': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf-generated-source',
-                  'status': 'Submitted', 'failure-info': None,
-                  'app-version': 'develop',
-                  'code-gen-image': 'sslhep/servicex_code_gen_func_adl_uproot:v1.2.0',
-                  'files': 1, 'files-completed': 0, 'files-failed': 0,
-                  'files-remaining': 1,
-                  'submit-time': '2023-05-25T20:05:05.564137Z',
-                  'finish-time': 'None',
-                  "minio-endpoint": 'minio.org:9000',
-                  "minio-secured": True,
-                  "minio-access-key": "miniouser",
-                  "minio-secret-key": "secret"}
+
+@fixture
+def minio_adapter() -> MinioAdapter:
+    return MinioAdapter('localhost', False, 'access_key', 'secret_key', 'bucket')
 
 
 @pytest.mark.asyncio
-async def test_initialize_from_status():
-    transform = TransformStatus(**test_transform)
-    minio = MinioAdapter.for_transform(transform)
+async def test_initialize_from_status(completed_status):
+    minio = MinioAdapter.for_transform(completed_status)
     assert minio.minio._base_url.host == "minio.org:9000"
     assert minio.minio._provider._credentials.access_key == "miniouser"
     assert minio.minio._provider._credentials.secret_key == "secret"
     assert minio.bucket == "b8c508d0-ccf2-4deb-a1f7-65c839eebabf"
 
+
+@pytest.mark.asyncio
+async def test_list_bucket(minio_adapter):
+    files = [ResultFile(filename='test.txt', size=10, extension='txt')]
+    minio_adapter.minio.list_objects = AsyncMock(return_value=[
+        Object(object_name=file.filename, size=file.size, bucket_name="bucket") for file in files])
+    result = await minio_adapter.list_bucket()
+    assert result == files
+    minio_adapter.minio.list_objects.assert_called_with('bucket')
+
+
+@pytest.mark.asyncio
+async def test_download_file(minio_adapter):
+    minio_adapter.minio.fget_object = AsyncMock(return_value='test.txt')
+    result = await minio_adapter.download_file('test.txt', local_dir="/tmp/foo")
+    assert result == PosixPath('/private/tmp/foo/test.txt')
+    minio_adapter.minio.fget_object.assert_called_with(bucket_name='bucket',
+                                                 file_path='/tmp/foo/test.txt',
+                                                 object_name='test.txt')
+
+
+@pytest.mark.asyncio
+async def test_get_signed_url(minio_adapter):
+    minio_adapter.minio.get_presigned_url = AsyncMock(
+        return_value='https://pre-signed.me')
+    result = await minio_adapter.get_signed_url('test.txt')
+    assert result == "https://pre-signed.me"
+    minio_adapter.minio.get_presigned_url.assert_called_with(bucket_name='bucket',
+                                                             method='GET',
+                                                             object_name='test.txt')

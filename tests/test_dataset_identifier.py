@@ -47,3 +47,16 @@ def test_file_list():
 def test_single_file():
     did = FileListDataset("c:/foo.bar")
     assert did.files == ["c:/foo.bar"]
+
+
+def test_populate_transform_request(transform_request):
+    did = FileListDataset(["c:/foo.bar"])
+    did.populate_transform_request(transform_request)
+    assert transform_request.file_list == ["c:/foo.bar"]
+
+    did2 = RucioDatasetIdentifier("123-456")
+    did2.populate_transform_request(transform_request)
+    assert transform_request.did == "rucio://123-456"
+
+
+

@@ -37,23 +37,6 @@ from pytest_asyncio import fixture
 from servicex_client.models import TransformRequest, ResultDestination, ResultFormat
 from servicex_client.servicex_adapter import ServiceXAdapter, AuthorizationError
 
-test_transforms = {'requests': [{'request_id': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf',
-                                 'did': 'File List Provided in Request', 'columns': None,
-                                 'selection': "(Where (SelectMany (call EventDataset) (lambda (list e) (call (attr e 'Jets') 'AntiKt4EMTopoJets'))) (lambda (list j) (and (> (/ (call (attr j 'pt')) 1000) 20) (< (call abs (/ (call (attr j 'eta')) 1000)) 4.5))))",
-                                 'tree-name': None,
-                                 'image': 'sslhep/servicex_func_adl_uproot_transformer:uproot4',
-                                 'workers': None, 'result-destination': 'object-store',
-                                 'result-format': 'parquet',
-                                 'workflow-name': 'selection_codegen',
-                                 'generated-code-cm': 'b8c508d0-ccf2-4deb-a1f7-65c839eebabf-generated-source',
-                                 'status': 'Submitted', 'failure-info': None,
-                                 'app-version': 'develop',
-                                 'code-gen-image': 'sslhep/servicex_code_gen_func_adl_uproot:v1.2.0',
-                                 'files': 1, 'files-completed': 0, 'files-failed': 0,
-                                 'files-remaining': 1,
-                                 'submit-time': '2023-05-25T20:05:05.564137Z',
-                                 'finish-time': 'None'}]}
-
 
 @fixture
 def servicex():
@@ -62,8 +45,8 @@ def servicex():
 
 @pytest.mark.asyncio
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.get')
-async def test_get_transforms(get, servicex):
-    get.return_value = httpx.Response(200, json=test_transforms)
+async def test_get_transforms(get, servicex, transform_status_response):
+    get.return_value = httpx.Response(200, json=transform_status_response)
     t = await servicex.get_transforms()
     assert len(t) == 1
     assert t[0].request_id == "b8c508d0-ccf2-4deb-a1f7-65c839eebabf"
@@ -80,15 +63,17 @@ async def test_get_transforms_auth_error(get, servicex):
 
 @pytest.mark.asyncio
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.get')
+@patch('servicex_client.servicex_adapter.httpx.AsyncClient.post')
 @patch('servicex_client.servicex_adapter.jwt.decode')
-async def test_get_transforms_wlcg_bearer_token(decode, get, servicex):
+async def test_get_transforms_wlcg_bearer_token(decode, post, get, servicex,
+                                                transform_status_response):
     token_file = tempfile.NamedTemporaryFile(mode="w+t", delete=False)
     token_file.write("luckycharms")
     token_file.close()
 
     os.environ['BEARER_TOKEN_FILE']=token_file.name
 
-    get.return_value = httpx.Response(200, json=test_transforms)
+    get.return_value = httpx.Response(200, json=transform_status_response)
     decode.return_value={'exp': math.inf}
     await servicex.get_transforms()
 
@@ -104,10 +89,10 @@ async def test_get_transforms_wlcg_bearer_token(decode, get, servicex):
 @pytest.mark.asyncio
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.post')
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.get')
-async def test_get_transforms_with_refresh(get, post):
+async def test_get_transforms_with_refresh(get, post, transform_status_response):
     servicex = ServiceXAdapter(url="https://servicex.org", refresh_token="refrescas")
     post.return_value = httpx.Response(200, json={"access_token":"luckycharms"})
-    get.return_value = httpx.Response(200, json=test_transforms)
+    get.return_value = httpx.Response(200, json=transform_status_response)
     await servicex.get_transforms()
 
     post.assert_called_with('https://servicex.org/token/refresh',
@@ -146,15 +131,15 @@ async def test_submit(post, servicex):
 
 @pytest.mark.asyncio
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.get')
-async def test_get_transform_status(get, servicex):
-    get.return_value = httpx.Response(200, json=test_transforms['requests'][0])
+async def test_get_transform_status(get, servicex, transform_status_response):
+    get.return_value = httpx.Response(200, json=transform_status_response['requests'][0])
     result = await servicex.get_transform_status("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")
     assert result.request_id == "b8c508d0-ccf2-4deb-a1f7-65c839eebabf"
 
 
 @pytest.mark.asyncio
 @patch('servicex_client.servicex_adapter.httpx.AsyncClient.get')
-async def test_get_transform_status(get, servicex):
+async def test_get_transform_status_auth_error(get, servicex):
     with pytest.raises(AuthorizationError):
         get.return_value = httpx.Response(401)
         await servicex.get_transform_status("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")

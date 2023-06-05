@@ -77,3 +77,10 @@ class MinioAdapter:
             file_path=path.as_posix()
         )
         return path.resolve()
+
+    async def get_signed_url(self, object_name: str) -> str :
+        return await self.minio.get_presigned_url(
+            bucket_name=self.bucket,
+            object_name=object_name,
+            method="GET"
+        )

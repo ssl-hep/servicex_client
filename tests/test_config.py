@@ -29,6 +29,6 @@ from servicex_client.configuration import Configuration
 
 
 def test_config_read():
-    c = Configuration.read(config_path="./example_config.yaml")
+    c = Configuration.read(config_path="tests/example_config.yaml")
     assert c
     print(c.endpoint_dict())

@@ -96,6 +96,10 @@ class ServiceXAdapter:
     def get_code_generators(self):
         with httpx.Client() as client:
             r = client.get(url=f"{self.url}/multiple-codegen-list")
+
+            if r.status_code == 403:
+                raise AuthorizationError(
+                    f"Not authorized to access serviceX at {self.url}")
         return r.json()
 
     async def submit_transform(self, transform_request: TransformRequest):
