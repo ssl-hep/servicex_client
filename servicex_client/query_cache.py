@@ -87,7 +87,7 @@ class QueryCache:
         else:
             return CacheRecord(**records[0])
 
-    def get_transform_by_request_id(self, request_id: str) -> CacheRecord | None:
+    def get_transform_by_request_id(self, request_id: str) -> Optional[CacheRecord]:
         transforms = Query()
         records = self.db.search(transforms.request_id == request_id)
         if not records:
