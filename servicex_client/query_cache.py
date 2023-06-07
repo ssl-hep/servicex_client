@@ -59,6 +59,9 @@ class QueryCache:
         Path(self.config.cache_path).mkdir(parents=True, exist_ok=True)
         self.db = TinyDB(os.path.join(self.config.cache_path, "db.json"))
 
+    def close(self):
+        self.db.close()
+
     def cache_transform(self, transform: TransformRequest,
                         completed_status: TransformStatus,
                         data_dir: str,

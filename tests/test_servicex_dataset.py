@@ -135,3 +135,4 @@ def test_transform_request():
             .set_result_format(ResultFormat.parquet)\
             .transform_request
         print("Qastle is ", q)
+        cache.close()

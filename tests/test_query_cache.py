@@ -88,6 +88,8 @@ def test_cache_transform(transform_request, completed_status):
         cache.delete_record_by_request_id("b8c508d0-ccf2-4deb-a1f7-65c839eebabf")
         assert len(cache.cached_queries()) == 0
 
+        cache.close()
+
 
 def test_cache_path(completed_status):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -96,6 +98,7 @@ def test_cache_path(completed_status):
         path_bits = os.path.split(cache.cache_path_for_transform(completed_status))
         assert path_bits[0] == temp_dir
         assert path_bits[1] == completed_status.request_id
+        cache.close()
 
 
 def test_record_delete(transform_request, completed_status):
@@ -114,3 +117,4 @@ def test_record_delete(transform_request, completed_status):
         assert len(cache.cached_queries()) == 2
         cache.delete_record_by_request_id("02c64494-4529-49a7-a4a6-95661ea3936e")
         assert len(cache.cached_queries()) == 1
+        cache.close()
