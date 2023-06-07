@@ -58,7 +58,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          PIP_NO_BINARY="caio" poetry install --with=test
+          poetry run pip install --force-reinstall caio --no-binary caio
+          poetry install --with=test
           pip list
 
       - name: Test with pytest
