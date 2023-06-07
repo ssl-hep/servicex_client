@@ -52,7 +52,7 @@ class RucioDatasetIdentifier(DataSetIdentifier):
 
 
 class FileListDataset:
-    def __init__(self, files: Union[List[str] | str]):
+    def __init__(self, files: List[str] | str):
         if type(files) == str:
             self.files = [files]
         else:

@@ -29,7 +29,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 from tinydb import TinyDB, Query, where
@@ -76,7 +76,7 @@ class QueryCache:
         )
         self.db.insert(json.loads(record.json()))
 
-    def get_transform_by_hash(self, hash: str) -> CacheRecord | None:
+    def get_transform_by_hash(self, hash: str) -> Optional[CacheRecord]:
         transforms = Query()
         records = self.db.search(transforms.hash == hash)
         if not records:
