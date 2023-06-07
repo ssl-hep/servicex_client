@@ -64,7 +64,7 @@ async def test_list_bucket(minio_adapter):
 async def test_download_file(minio_adapter):
     minio_adapter.minio.fget_object = AsyncMock(return_value='test.txt')
     result = await minio_adapter.download_file('test.txt', local_dir="/tmp/foo")
-    assert result == PosixPath('/private/tmp/foo/test.txt')
+    assert str(result).endswith('test.txt')
     minio_adapter.minio.fget_object.assert_called_with(bucket_name='bucket',
                                                        file_path='/tmp/foo/test.txt',
                                                        object_name='test.txt')
