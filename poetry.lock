@@ -76,6 +76,17 @@ python-versions = ">=3.6"
 typing-extensions = {version = ">=3.6.5", markers = "python_version < \"3.8\""}
 
 [[package]]
+name = "asyncmock"
+version = "0.4.2"
+description = "Extension to the standard mock framework to support support async"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+mock = "*"
+
+[[package]]
 name = "asynctest"
 version = "0.13.0"
 description = "Enhance the standard unittest package with features for testing asyncio libraries"
@@ -396,6 +407,19 @@ aiofile = "*"
 aiohttp = "*"
 certifi = "*"
 urllib3 = "*"
+
+[[package]]
+name = "mock"
+version = "5.0.2"
+description = "Rolling backport of unittest.mock for all Pythons"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+build = ["blurb", "twine", "wheel"]
+docs = ["sphinx"]
+test = ["pytest", "pytest-cov"]
 
 [[package]]
 name = "multidict"
@@ -777,7 +801,7 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7, < 3.12"
-content-hash = "57aea52ccf938a4c344c308df0ad517115cb0ae95cc3aa12a2c98e248b369146"
+content-hash = "2aa7bb4a6f1764708c9196ed8d005e98b6ae5c2984a3bfbd6e868103b9ea9f15"
 
 [metadata.files]
 aiofile = [
@@ -884,6 +908,10 @@ anyio = [
 async-timeout = [
     {file = "async-timeout-4.0.2.tar.gz", hash = "sha256:2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15"},
     {file = "async_timeout-4.0.2-py3-none-any.whl", hash = "sha256:8ca1e4fcf50d07413d66d1a5e416e42cfdf5851c981d679a09851a6853383b3c"},
+]
+asyncmock = [
+    {file = "asyncmock-0.4.2-py3-none-any.whl", hash = "sha256:fd8bc4e7813251a8959d1140924ccba3adbbc7af885dba7047c67f73c0b664b1"},
+    {file = "asyncmock-0.4.2.tar.gz", hash = "sha256:c251889d542e98fe5f7ece2b5b8643b7d62b50a5657d34a4cbce8a1d5170d750"},
 ]
 asynctest = [
     {file = "asynctest-0.13.0-py3-none-any.whl", hash = "sha256:5da6118a7e6d6b54d83a8f7197769d046922a44d2a99c21382f0a6e4fadae676"},
@@ -1210,6 +1238,10 @@ mdurl = [
 miniopy-async = [
     {file = "miniopy-async-1.15.tar.gz", hash = "sha256:f2ee438373eb2c60bda6363ffbc28ca27f4d871089ea65a02e09896864f3d72f"},
     {file = "miniopy_async-1.15-py3-none-any.whl", hash = "sha256:9872e9168f45d9f4b828e7764163949f71d68f4f0cba2c22bc31f9856d1ed17e"},
+]
+mock = [
+    {file = "mock-5.0.2-py3-none-any.whl", hash = "sha256:0e0bc5ba78b8db3667ad636d964eb963dc97a59f04c6f6214c5f0e4a8f726c56"},
+    {file = "mock-5.0.2.tar.gz", hash = "sha256:06f18d7d65b44428202b145a9a36e99c2ee00d1eb992df0caf881d4664377891"},
 ]
 multidict = [
     {file = "multidict-6.0.4-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:0b1a97283e0c85772d613878028fec909f003993e1007eafa715b24b377cb9b8"},
