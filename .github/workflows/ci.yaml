@@ -57,6 +57,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
           poetry install --with=test
           pip list
 
