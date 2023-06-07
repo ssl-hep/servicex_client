@@ -35,7 +35,11 @@ from abc import ABC
 from asyncio import Task, CancelledError
 from typing import TypeVar, Any, cast, List, Optional, Union
 
-import pandas
+try:
+    import pandas
+except ModuleNotFoundError:
+    pass
+
 import rich
 from qastle import python_ast_to_text_ast
 from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
