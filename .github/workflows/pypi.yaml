@@ -13,14 +13,14 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.7 - 3.10.7'
+        python-version: '3.8 - 3.12'
     - name: Install poetry
       uses: abatilo/actions-poetry@v2
       with:
         poetry-version: 1.2.2
     - name: Install dependencies
       run: |
-        poetry install --no-root
+        poetry install
         pip list
     - name: Set env
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
