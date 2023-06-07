@@ -60,8 +60,8 @@ def main_info(
     pass
 
 
-@app.command(no_args_is_help=True)
-def list_codegens(
+@app.command(no_args_is_help=False)
+def codegens(
         url: Optional[str] = url_cli_option,
         backend: Optional[str] = backend_cli_option
 ):
