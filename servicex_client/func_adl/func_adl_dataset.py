@@ -25,16 +25,23 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from typing import Union
+import ast
+from typing import Union, Optional, Any, TypeVar
 
+from func_adl import EventDataset
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
-from servicex_client.func_adl.servicex_dataset_source import ServiceXDatasetSourceBase
+from servicex_client.dataset import Dataset
 from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 
+T = TypeVar("T")
 
-class ServiceXFuncADLUproot(ServiceXDatasetSourceBase):
+
+class FuncADLDataset(Dataset, EventDataset[T]):
+    async def execute_result_async(self, a: ast.AST, title: Optional[str] = None) -> Any:
+        pass
+
     def check_data_format_request(self, f_name: str):
         pass
 

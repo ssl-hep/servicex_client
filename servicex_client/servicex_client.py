@@ -30,7 +30,7 @@ from typing import Union
 
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
-from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUproot
+from servicex_client.func_adl.func_adl_dataset import FuncADLDataset
 from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 
@@ -80,12 +80,12 @@ class ServiceXClient:
                                     DataSetIdentifier, FileListDataset],
                                 title: str = "ServiceX Client",
                                 codegen: str = "uproot"
-                                ) -> ServiceXFuncADLUproot:
+                                ) -> FuncADLDataset:
         if codegen not in self.code_generators:
             raise NameError(
                 f"{codegen} code generator not supported by serviceX "
                 f"deployment at {self.servicex.url}")
 
-        return ServiceXFuncADLUproot(dataset_identifier, sx_adapter=self.servicex,
-                                     title=title, codegen=codegen, config=self.config,
-                                     query_cache=self.query_cache)
+        return FuncADLDataset(dataset_identifier, sx_adapter=self.servicex,
+                              title=title, codegen=codegen, config=self.config,
+                              query_cache=self.query_cache)

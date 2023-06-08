@@ -55,10 +55,8 @@ from servicex_client.models import TransformRequest, ResultDestination, ResultFo
 from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
 
-T = TypeVar("T")
 
-
-class ServiceXDatasetSourceBase(EventDataset[T], ABC):
+class Dataset(ABC):
     # These are methods that are translated locally
     _execute_locally = ["ResultPandasDF", "ResultAwkwardArray"]
 
@@ -435,59 +433,6 @@ class ServiceXDatasetSourceBase(EventDataset[T], ABC):
                 source = c
 
         return python_ast_to_text_ast(source)
-
-    async def execute_result_async(
-        self, a: ast.Call, title: Optional[str] = None
-    ) -> Any:
-        r"""
-        Run a query against a func-adl ServiceX backend. The appropriate part of the AST is
-        shipped there, and it is interpreted.
-
-        Arguments:
-
-            a:                  The ast that we should evaluate
-            title:              Optional title to be added to the transform
-
-        Returns:
-            v                   Whatever the data that is requested (awkward arrays, etc.)
-        """
-        # Check the call is legal for this datasource.
-        a_func = cast(ast.Name, a.func)
-
-        # Get the qastle string for this query
-        q_str = self.generate_qastle(a)
-        logging.getLogger(__name__).debug(f"Qastle string sent to servicex: {q_str}")
-
-        # If only qastle is wanted, return here.
-        if self._return_qastle:
-            return q_str
-
-        # Find the function we need to run against.
-        if a_func.id in self._ds_map:
-            name = self._ds_map[a_func.id]
-        else:
-            data_type = self._ds.first_supported_datatype(["parquet", "root-file"])
-            if data_type is not None and data_type in self._format_map:
-                name = self._format_map[data_type]
-            else:
-                raise FuncADLServerException(
-                    f"Internal error - asked for {a_func.id} - but this dataset does not support it."  # NOQA 501
-                )
-
-        # Run the query for real!
-        attr = getattr(self._ds, name)
-        result = await attr(q_str, title=title)
-
-        # If this is a single column awkward query, and the user did not
-        # specify a column name, then we will return the first column.
-        if (
-            "awkward" in name
-            and (not has_col_names(a))
-            and 'key="col1"' in str(result.layout)
-        ):
-            result = result["col1"]
-
-        return result
 
     def as_qastle(self):
         return self.value()

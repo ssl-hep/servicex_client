@@ -32,8 +32,8 @@ import pytest
 
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import FileListDataset
-from servicex_client.func_adl.servicex_dataset_source import ServiceXDatasetSourceBase
-from servicex_client.func_adl.servicex_func_adl_uproot import ServiceXFuncADLUproot
+from servicex_client.dataset import Dataset
+from servicex_client.func_adl.func_adl_dataset import FuncADLDataset
 from servicex_client.models import TransformStatus, Status, ResultFile, \
     ResultFormat
 from servicex_client.query_cache import QueryCache
@@ -110,10 +110,10 @@ async def test_submit(mocker):
     mock_cache = mocker.MagicMock(QueryCache)
     mocker.patch("servicex_client.minio_adpater.MinioAdapter", return_value=mock_minio)
     did = FileListDataset("/foo/bar/baz.root")
-    datasource = ServiceXDatasetSourceBase(dataset_identifier=did,
-                                           codegen="uproot",
-                                           sx_adapter=servicex,
-                                           query_cache=mock_cache)
+    datasource = FuncADLDataset(dataset_identifier=did,
+                                codegen="uproot",
+                                sx_adapter=servicex,
+                                query_cache=mock_cache)
     datasource.result_format = ResultFormat.parquet
     _ = await datasource.submit_and_download()
     print(mock_minio.download_file.call_args)
@@ -125,14 +125,14 @@ def test_transform_request():
     with tempfile.TemporaryDirectory() as temp_dir:
         config = Configuration(cache_path=temp_dir, api_endpoints=[])
         cache = QueryCache(config)
-        datasource = ServiceXFuncADLUproot(dataset_identifier=did,
-                                           codegen="uproot",
-                                           sx_adapter=servicex,
-                                           config=config, query_cache=cache)
+        datasource = FuncADLDataset(dataset_identifier=did,
+                                    codegen="uproot",
+                                    sx_adapter=servicex,
+                                    config=config, query_cache=cache)
 
         q = datasource.Select(
-            lambda e: {'lep_pt': e['lep_pt']})\
-            .set_result_format(ResultFormat.parquet)\
+            lambda e: {'lep_pt': e['lep_pt']}) \
+            .set_result_format(ResultFormat.parquet) \
             .transform_request
         print("Qastle is ", q)
         cache.close()
