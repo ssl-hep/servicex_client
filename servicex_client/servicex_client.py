@@ -26,13 +26,13 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import asyncio
-from typing import Union
 
 from servicex_client.configuration import Configuration
-from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.func_adl.func_adl_dataset import FuncADLDataset
 from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
+from servicex_client.types import DID
+from servicex_client.python_dataset import PythonDataset
 
 
 class ServiceXClient:
@@ -76,8 +76,7 @@ class ServiceXClient:
         return self.servicex.get_code_generators()
 
     def func_adl_uproot_dataset(self,
-                                dataset_identifier: Union[
-                                    DataSetIdentifier, FileListDataset],
+                                dataset_identifier: DID,
                                 title: str = "ServiceX Client",
                                 codegen: str = "uproot"
                                 ) -> FuncADLDataset:
@@ -89,3 +88,17 @@ class ServiceXClient:
         return FuncADLDataset(dataset_identifier, sx_adapter=self.servicex,
                               title=title, codegen=codegen, config=self.config,
                               query_cache=self.query_cache)
+
+    def python_dataset(self,
+                       dataset_identifier: DID,
+                       title: str = "ServiceX Client",
+                       codegen: str = "uproot"
+                       ) -> PythonDataset:
+        if codegen not in self.code_generators:
+            raise NameError(
+                f"{codegen} code generator not supported by serviceX "
+                f"deployment at {self.servicex.url}")
+
+        return PythonDataset(dataset_identifier, sx_adapter=self.servicex,
+                             title=title, codegen=codegen, config=self.config,
+                             query_cache=self.query_cache)

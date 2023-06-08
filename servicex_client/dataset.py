@@ -26,15 +26,11 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import abc
-import ast
 import asyncio
-import copy
-import logging
 import os.path
-import typing
 from abc import ABC
 from asyncio import Task, CancelledError
-from typing import TypeVar, Any, cast, List, Optional, Union
+from typing import Union
 
 try:
     import pandas
@@ -42,14 +38,11 @@ except ModuleNotFoundError:
     pass
 
 import rich
-from qastle import python_ast_to_text_ast
 from rich.progress import Progress, TaskID, TextColumn, BarColumn, MofNCompleteColumn, \
     TimeRemainingColumn
 
-from func_adl import EventDataset
 from servicex_client.configuration import Configuration
 from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
-from servicex_client.func_adl.util import has_tuple, FuncADLServerException, has_col_names
 from servicex_client.minio_adpater import MinioAdapter
 from servicex_client.models import TransformRequest, ResultDestination, ResultFormat, \
     Status
@@ -70,7 +63,7 @@ class Dataset(ABC):
             query_cache: QueryCache = None,
             servicex_polling_interval: int = 10,
             minio_polling_interval: int = 5):
-        super().__init__(item_type=Any)
+        super(Dataset, self).__init__()
         self.servicex = sx_adapter
         self.configuration = config
         self.cache = query_cache
@@ -312,4 +305,3 @@ class Dataset(ABC):
 
     async def as_signed_urls(self):
         return await self.submit_and_download(signed_urls_only=True)
-

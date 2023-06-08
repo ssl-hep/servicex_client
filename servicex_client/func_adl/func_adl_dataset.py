@@ -27,18 +27,18 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import ast
 import copy
-from typing import Union, Optional, Any, TypeVar, cast
+from typing import Optional, Any, TypeVar, cast, List
 
 from pydantic import typing
 from qastle import python_ast_to_text_ast
 
 from func_adl import EventDataset
 from servicex_client.configuration import Configuration
-from servicex_client.dataset_identifier import DataSetIdentifier, FileListDataset
 from servicex_client.dataset import Dataset
 from servicex_client.func_adl.util import has_tuple
 from servicex_client.query_cache import QueryCache
 from servicex_client.servicex_adapter import ServiceXAdapter
+from servicex_client.types import DID
 
 T = TypeVar("T")
 
@@ -53,8 +53,7 @@ class FuncADLDataset(Dataset, EventDataset[T]):
     def check_data_format_request(self, f_name: str):
         pass
 
-    def __init__(self, dataset_identifier: Union[
-        DataSetIdentifier, FileListDataset],
+    def __init__(self, dataset_identifier: DID,
                  sx_adapter: ServiceXAdapter = None,
                  title: str = "ServiceX Client",
                  codegen: str = None,
