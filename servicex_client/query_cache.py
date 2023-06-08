@@ -41,6 +41,7 @@ from servicex_client.models import TransformRequest, TransformStatus, ResultForm
 class CacheRecord(BaseModel):
     hash: str
     title: str
+    codegen: str
     request_id: str
     submit_time: datetime
     data_dir: str
@@ -70,6 +71,7 @@ class QueryCache:
         record = CacheRecord(
             hash=transform.compute_hash(),
             title=transform.title,
+            codegen=transform.codegen,
             request_id=completed_status.request_id,
             submit_time=completed_status.submit_time,
             data_dir=data_dir,

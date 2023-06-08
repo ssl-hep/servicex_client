@@ -51,6 +51,7 @@ def list():
     cache = sx.query_cache
     table = Table(title="Cached Queries")
     table.add_column("Title")
+    table.add_column("Codegen")
     table.add_column("Transform ID")
     table.add_column("Run Date")
     table.add_column("Files")
@@ -59,6 +60,7 @@ def list():
     for r in runs:
         table.add_row(
             r.title,
+            r.codegen,
             r.request_id,
             r.submit_time.astimezone().strftime("%a, %Y-%m-%d %H:%M"),
             str(r.files),
